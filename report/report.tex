@@ -1,0 +1,27 @@
+\documentclass[10pt, twocolumn]{article}
+\usepackage{geometry}[margin=1in]
+
+\title{Deep Reinforcement Learning for Atari Games}
+\author{Garnet Liu \and Vikram Saraph \and Birol Senturk}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+In recent years, deep learning techniques have been successfully adapted and applied to problems
+in reinforcement learning. In this project, we survey and evaluate one such technique, called \emph{imagination augmented agents},
+(or \emph{I2A}). This technique was initially developed and published by Weber \emph{et. al.} at DeepMind \cite{}. In their original
+work, the authors describe the novel I2A as one that combines aspects of \emph{model-free} learning, in which an agent makes decisions
+based only on its current observations, with \emph{model-based} learning, where the agent attempts to learn about its environment
+in addition to a policy. In their work, the model-free agent is augmented with a model-based \emph{imagination engine}, which
+makes predictions about future trajectories of the agent from its current state.
+
+While model-free agents have seemingly more flexible architectures, in practice they do not generalize do different tasks. Incorporating model-based aspects allows one to provide additional fine-tuning to the network's architecture in some way that is representative of the agent's environment. Indeed, the authors of the original paper demonstrate a significant improvement in the agent when adding imagination to a standard model-free agent. They evaluate I2A on two different 2d games: MiniPacman, which is a simplified version of PacMan, and Sokoban, in which the agent must push blocks onto designated targets. 
+
+
+
+\end{abstract}
+
+\section{Introduction}
+
+\end{document}
