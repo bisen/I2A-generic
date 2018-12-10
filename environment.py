@@ -2,6 +2,7 @@ import tensorflow as tf
 import gym
 import random
 import numpy as np
+from a2c_agent import A2C
 
 BATCH_SIZE = 16
 
@@ -16,6 +17,9 @@ pixels = (
 num_actions = 6
 
 pixel_to_type = {pixel: i for i, pixel in enumerate(pixels)}
+
+agent = A2C('Pong-v0')
+
 def map_pixels(states):
     types = []
     for pixel in np.array(states).reshape(-1, 3):
@@ -88,8 +92,8 @@ class EnvModel:
 # replace this with a real policy
 def next_actions(states):
     actions = []
-    for i in range(BATCH_SIZE):
-        actions.append(random.randrange(num_actions))
+    for s in states:
+        actions.append(agent.next_action(s))
     return actions
 
 # strip first 24 rows, make borders black
