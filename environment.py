@@ -49,14 +49,17 @@ class BasicBlock:
         return self.out
 
 class EnvModel:
-    def __init__(self, n_pixels, n_rewards):
+    def __init__(self, n_pixels):
         self.n_pixels = n_pixels
-        self.n_rewards = n_rewards
+        # self.n_rewards = n_rewards
 
         self.inputs = tf.placeholder(tf.float32, [None, 186, 160, 3 + game.num_actions])
         self.targets = tf.placeholder(tf.int32, [None])
+        self.target_rewards = tf.placeholder(tf.float32, [None])
 
         self.image, self.reward = self.predict()
+        self.image_loss = self.image_loss_function()
+        self.reward_loss = self.reward_loss_function()
         self.loss = self.loss_function()
         self.optimizer = self.optimize()
 
@@ -94,7 +97,8 @@ class EnvModel:
         reward = tf.layers.conv2d(basic_block2, 192, 1, 1)
         reward = tf.layers.conv2d(reward, 64, 1, 1)
         reward = tf.reshape(reward, [-1, 186 * 160 * 64])
-        reward = tf.layers.dense(reward, self.n_rewards, activation=tf.nn.softmax)
+        reward = tf.layers.dense(reward, 1, activation=tf.nn.softmax)
+        reward = tf.squeeze(reward)
 
         return image, reward
 
@@ -102,10 +106,18 @@ class EnvModel:
         # self.load_last_checkpoint()
         return self.session.run(self.predict(), feed_dict={self.inputs: self.convert_input(states, actions)})
 
-    def loss_function(self):
+    def image_loss_function(self):
         onehot = tf.one_hot(self.targets, self.n_pixels)
-        loss = tf.nn.softmax_cross_entropy_with_logits(labels = onehot, logits = self.image)
-        return loss
+        losses = tf.nn.softmax_cross_entropy_with_logits(labels = onehot, logits = self.image)
+        return tf.reduce_sum(losses)
+
+    def reward_loss_function(self):
+        losses = tf.losses.mean_squared_error(self.reward, self.target_rewards)
+        return tf.reduce_sum(losses)
+
+    def loss_function(self):
+        reward_coef = 0.1
+        return self.image_loss + reward_coef * self.reward_loss
 
     def optimize(self):
         train = tf.train.AdamOptimizer(0.001).minimize(self.loss)
@@ -113,7 +125,7 @@ class EnvModel:
 
     # train for 1 epoch
     def train_episode(self, feed_dict):
-        self.session.run([self.loss, self.optimizer], feed_dict=feed_dict)
+        return self.session.run([self.loss, self.optimizer], feed_dict=feed_dict)
 
     def convert_input(self, states, actions):
         # delete top rows, make top/bottom borders black
@@ -157,7 +169,7 @@ def next_batch(n_updates):
         results = [env.step(actions[i]) for i, env in enumerate(envs)]
         next_states, rewards, is_done, _ = zip(*results)
 
-        yield i, states, actions, next_states, is_done
+        yield i, states, actions, rewards, next_states, is_done
 
         states = next_states
 
@@ -165,15 +177,19 @@ def next_batch(n_updates):
 if __name__ == '__main__':
     # training
     # set up placeholders
-    env_model = EnvModel(len(game.pixels), 3)
+    env_model = EnvModel(len(game.pixels))
 
-    for it, states, actions, next_states, is_done in next_batch(1):
+    for it, states, actions, rewards, next_states, is_done in next_batch(10):
 
         inputs = env_model.convert_input(states, actions)
         next_states = normalize_states(next_states)
         # convert target states to indexes, using map_pixels function
         # there are only 5 different kinds of pixels
         targets = map_pixels(next_states)
-        env_model.train_episode(feed_dict={env_model.inputs: inputs, env_model.targets: targets})
-        print(it)
+        loss, _ = env_model.train_episode(feed_dict={
+            env_model.inputs: inputs,
+            env_model.targets: targets,
+            env_model.target_rewards: rewards
+        })
+        print(it, loss)
     env_model.save_checkpoint()
