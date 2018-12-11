@@ -99,8 +99,8 @@ class EnvModel:
         return image, reward
 
     def forward(self, states, actions):
-        self.load_last_checkpoint()
-        self.session.run(self.predict(), feed_dict={self.inputs: convert_input(states, actions)})
+        # self.load_last_checkpoint()
+        return self.session.run(self.predict(), feed_dict={self.inputs: self.convert_input(states, actions)})
 
     def loss_function(self):
         onehot = tf.one_hot(self.targets, self.n_pixels)
@@ -115,17 +115,17 @@ class EnvModel:
     def train_episode(self, feed_dict):
         self.session.run([self.loss, self.optimizer], feed_dict=feed_dict)
 
-def convert_input(states, actions):
-    # delete top rows, make top/bottom borders black
-    states = normalize_states(states)
+    def convert_input(self, states, actions):
+        # delete top rows, make top/bottom borders black
+        states = normalize_states(states)
 
-    # convert actions to onehot representation
-    onehot_actions = np.zeros((BATCH_SIZE, 186, 160, game.num_actions))
-    onehot_actions[range(BATCH_SIZE), actions] = 1
+        # convert actions to onehot representation
+        onehot_actions = np.zeros((BATCH_SIZE, 186, 160, game.num_actions))
+        onehot_actions[range(BATCH_SIZE), actions] = 1
 
-    # concatenate states and actions to feed to optimizer
-    inputs = np.concatenate([states, onehot_actions], 3)
-    return inputs
+        # concatenate states and actions to feed to optimizer
+        inputs = np.concatenate([states, onehot_actions], 3)
+        return inputs
 
 # return a batch of random actions
 # replace this with a real policy
@@ -167,15 +167,13 @@ if __name__ == '__main__':
     # set up placeholders
     env_model = EnvModel(len(game.pixels), 3)
 
-    for it, states, actions, next_states, is_done in next_batch(100):
+    for it, states, actions, next_states, is_done in next_batch(1):
 
-        inputs = convert_input(states, actions)
-
+        inputs = env_model.convert_input(states, actions)
         next_states = normalize_states(next_states)
         # convert target states to indexes, using map_pixels function
         # there are only 5 different kinds of pixels
         targets = map_pixels(next_states)
-
         env_model.train_episode(feed_dict={env_model.inputs: inputs, env_model.targets: targets})
         print(it)
     env_model.save_checkpoint()
