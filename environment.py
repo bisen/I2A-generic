@@ -103,7 +103,7 @@ class EnvModel:
         return image, reward
 
     def forward(self, states, actions):
-        # self.load_last_checkpoint()
+        self.load_last_checkpoint()
         return self.session.run(self.predict(), feed_dict={self.inputs: self.convert_input(states, actions)})
 
     def image_loss_function(self):
