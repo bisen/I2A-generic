@@ -3,22 +3,15 @@ import gym
 import random
 import numpy as np
 from a2c_agent import A2C
+import game_utils
 
 BATCH_SIZE = 16
 
-pixels = (
-    (144, 72, 17),      # background
-    (0, 0, 0),          # boundary
-    (213, 130, 74),     # opponent
-    (236, 236, 236),    # ball
-    (92, 186, 92),      # player
-)
+game = game_utils.pong
 
-num_actions = 6
+pixel_to_type = {pixel: i for i, pixel in enumerate(game.pixels)}
 
-pixel_to_type = {pixel: i for i, pixel in enumerate(pixels)}
-
-agent = A2C('Pong-v0')
+agent = A2C(game.name)
 
 def map_pixels(states):
     types = []
@@ -57,6 +50,7 @@ class BasicBlock:
 
 class EnvModel:
     def __init__(self, inputs, n_pixels, n_rewards):
+        self.n_pixels = n_pixels
 
         # initial convolutions
         conv = tf.layers.conv2d(inputs, 64, 1, 1, activation = tf.nn.relu)
@@ -71,7 +65,7 @@ class EnvModel:
 
         # fully connected
         self.image = tf.layers.dense(image, n_pixels)
-        print(self.image.shape)
+        # print(self.image.shape)
 
         # reward
         reward = tf.layers.conv2d(basic_block2, 192, 1, 1)
@@ -83,7 +77,7 @@ class EnvModel:
         return self.image, self.reward
 
     def optimize(self, targets):
-        onehot = tf.one_hot(targets, len(pixels))
+        onehot = tf.one_hot(targets, self.n_pixels)
         loss = tf.nn.softmax_cross_entropy_with_logits(labels = onehot, logits = self.image)
         train = tf.train.AdamOptimizer(0.001).minimize(loss)
         return loss, train
@@ -109,7 +103,7 @@ def normalize_states(states):
 
 # play BATCH_SIZE games using the policy given by next_actions
 def next_batch(n_updates):
-    envs = [gym.make("Pong-v0") for i in range(BATCH_SIZE)]
+    envs = [gym.make(game.name) for i in range(BATCH_SIZE)]
     states = [env.reset() for env in envs]
     states, _, _, _ = zip(*[env.step(0) for env in envs])
 
@@ -122,33 +116,34 @@ def next_batch(n_updates):
 
         states = next_states
 
-# training
-# set up placeholders
-inputs_placeholder = tf.placeholder(tf.float32, [None, 186, 160, 3 + num_actions])
-env_model = EnvModel(inputs_placeholder, len(pixels), 3)
-targets_placeholder = tf.placeholder(tf.int32, [None])
-loss, train = env_model.optimize(targets_placeholder)
+if __name__ == '__main__':
+    # training
+    # set up placeholders
+    inputs_placeholder = tf.placeholder(tf.float32, [None, 186, 160, 3 + game.num_actions])
+    env_model = EnvModel(inputs_placeholder, len(game.pixels), 3)
+    targets_placeholder = tf.placeholder(tf.int32, [None])
+    loss, train = env_model.optimize(targets_placeholder)
 
-# set up session
-sess = tf.Session()
-sess.run(tf.global_variables_initializer())
+    # set up session
+    sess = tf.Session()
+    sess.run(tf.global_variables_initializer())
 
-for it, states, actions, next_states, is_done in next_batch(100):
+    for it, states, actions, next_states, is_done in next_batch(100):
 
-    # delete top rows, make top/bottom borders black
-    states = normalize_states(states)
-    next_states = normalize_states(next_states) 
+        # delete top rows, make top/bottom borders black
+        states = normalize_states(states)
+        next_states = normalize_states(next_states)
 
-    # convert actions to onehot representation
-    onehot_actions = np.zeros((BATCH_SIZE, 186, 160, num_actions))
-    onehot_actions[range(BATCH_SIZE), actions] = 1
+        # convert actions to onehot representation
+        onehot_actions = np.zeros((BATCH_SIZE, 186, 160, game.num_actions))
+        onehot_actions[range(BATCH_SIZE), actions] = 1
 
-    # concatenate states and actions to feed to optimizer
-    inputs = np.concatenate([np.array(states), onehot_actions], 3)
+        # concatenate states and actions to feed to optimizer
+        inputs = np.concatenate([np.array(states), onehot_actions], 3)
 
-    # convert target states to indexes, using map_pixels function
-    # there are only 5 different kinds of pixels
-    targets = map_pixels(next_states)
+        # convert target states to indexes, using map_pixels function
+        # there are only 5 different kinds of pixels
+        targets = map_pixels(next_states)
 
-    sess.run([loss, train], feed_dict={inputs_placeholder: inputs, targets_placeholder: targets})
-    print(it)
+        sess.run([loss, train], feed_dict={inputs_placeholder: inputs, targets_placeholder: targets})
+        print(it)
