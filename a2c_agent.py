@@ -44,12 +44,12 @@ class A2C:
     # Load the last saved checkpoint during training or used by test
     def load_last_checkpoint(self):
         try:
-            self.saver.restore(self.session, tf.train.latest_checkpoint('./'))
+            self.saver.restore(self.session, tf.train.latest_checkpoint('models/a2c/'))
         except:
-            pass
+            print("failed to load check point")
 
     def save_checkpoint(self):
-        self.saver.save(self.session, './a2c_saved_model')
+        self.saver.save(self.session, 'models/a2c/a2c_saved_model')
 
     def next_action(self, state):
         self.load_last_checkpoint()

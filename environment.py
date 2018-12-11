@@ -49,11 +49,35 @@ class BasicBlock:
         return self.out
 
 class EnvModel:
-    def __init__(self, inputs, n_pixels, n_rewards):
+    def __init__(self, n_pixels, n_rewards):
         self.n_pixels = n_pixels
+        self.n_rewards = n_rewards
 
+        self.inputs = tf.placeholder(tf.float32, [None, 186, 160, 3 + game.num_actions])
+        self.targets = tf.placeholder(tf.int32, [None])
+
+        self.image, self.reward = self.predict()
+        self.loss = self.loss_function()
+        self.optimizer = self.optimize()
+
+        self.session = tf.Session()
+        self.session.run(tf.global_variables_initializer())
+        # For saving/loading models
+        self.saver = tf.train.Saver()
+
+    # Load the last saved checkpoint during training or used by test
+    def load_last_checkpoint(self):
+        try:
+            self.saver.restore(self.session, tf.train.latest_checkpoint('models/env/'))
+        except:
+            print("failed to load check point")
+
+    def save_checkpoint(self):
+        self.saver.save(self.session, 'models/env/env_saved_model')
+
+    def predict(self):
         # initial convolutions
-        conv = tf.layers.conv2d(inputs, 64, 1, 1, activation = tf.nn.relu)
+        conv = tf.layers.conv2d(self.inputs, 64, 1, 1, activation=tf.nn.relu)
 
         # invocations of basic blocks
         basic_block1 = BasicBlock(conv, 16, 32, 64).forward()
@@ -64,23 +88,44 @@ class EnvModel:
         image = tf.reshape(image_conv, [-1, 256])
 
         # fully connected
-        self.image = tf.layers.dense(image, n_pixels)
+        image = tf.layers.dense(image, self.n_pixels)
         # print(self.image.shape)
-
         # reward
         reward = tf.layers.conv2d(basic_block2, 192, 1, 1)
         reward = tf.layers.conv2d(reward, 64, 1, 1)
         reward = tf.reshape(reward, [-1, 186 * 160 * 64])
-        self.reward = tf.layers.dense(reward, n_rewards, activation = tf.nn.softmax)
+        reward = tf.layers.dense(reward, self.n_rewards, activation=tf.nn.softmax)
 
-    def forward(self):
-        return self.image, self.reward
+        return image, reward
 
-    def optimize(self, targets):
-        onehot = tf.one_hot(targets, self.n_pixels)
+    def forward(self, states, actions):
+        self.load_last_checkpoint()
+        self.session.run(self.predict(), feed_dict={self.inputs: convert_input(states, actions)})
+
+    def loss_function(self):
+        onehot = tf.one_hot(self.targets, self.n_pixels)
         loss = tf.nn.softmax_cross_entropy_with_logits(labels = onehot, logits = self.image)
-        train = tf.train.AdamOptimizer(0.001).minimize(loss)
-        return loss, train
+        return loss
+
+    def optimize(self):
+        train = tf.train.AdamOptimizer(0.001).minimize(self.loss)
+        return train
+
+    # train for 1 epoch
+    def train_episode(self, feed_dict):
+        self.session.run([self.loss, self.optimizer], feed_dict=feed_dict)
+
+def convert_input(states, actions):
+    # delete top rows, make top/bottom borders black
+    states = normalize_states(states)
+
+    # convert actions to onehot representation
+    onehot_actions = np.zeros((BATCH_SIZE, 186, 160, game.num_actions))
+    onehot_actions[range(BATCH_SIZE), actions] = 1
+
+    # concatenate states and actions to feed to optimizer
+    inputs = np.concatenate([states, onehot_actions], 3)
+    return inputs
 
 # return a batch of random actions
 # replace this with a real policy
@@ -116,34 +161,21 @@ def next_batch(n_updates):
 
         states = next_states
 
+
 if __name__ == '__main__':
     # training
     # set up placeholders
-    inputs_placeholder = tf.placeholder(tf.float32, [None, 186, 160, 3 + game.num_actions])
-    env_model = EnvModel(inputs_placeholder, len(game.pixels), 3)
-    targets_placeholder = tf.placeholder(tf.int32, [None])
-    loss, train = env_model.optimize(targets_placeholder)
-
-    # set up session
-    sess = tf.Session()
-    sess.run(tf.global_variables_initializer())
+    env_model = EnvModel(len(game.pixels), 3)
 
     for it, states, actions, next_states, is_done in next_batch(100):
 
-        # delete top rows, make top/bottom borders black
-        states = normalize_states(states)
+        inputs = convert_input(states, actions)
+
         next_states = normalize_states(next_states)
-
-        # convert actions to onehot representation
-        onehot_actions = np.zeros((BATCH_SIZE, 186, 160, game.num_actions))
-        onehot_actions[range(BATCH_SIZE), actions] = 1
-
-        # concatenate states and actions to feed to optimizer
-        inputs = np.concatenate([np.array(states), onehot_actions], 3)
-
         # convert target states to indexes, using map_pixels function
         # there are only 5 different kinds of pixels
         targets = map_pixels(next_states)
 
-        sess.run([loss, train], feed_dict={inputs_placeholder: inputs, targets_placeholder: targets})
+        env_model.train_episode(feed_dict={env_model.inputs: inputs, env_model.targets: targets})
         print(it)
+    env_model.save_checkpoint()
