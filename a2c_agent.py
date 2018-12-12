@@ -189,10 +189,10 @@ if __name__ == '__main__':
     # The code below is similar to what our autograder will be running.
 
     model = A2C(gym.make('Pong-v0'))
-    model.save_checkpoint()
-    # for i in range(EPOCHS):
-    #     model.train_episode()
-    #
-    #     if i%SAVE_EVERY == 0:
-    #         print("MODEL saved at iteration: ", i)
-    #         model.save_checkpoint()
+
+    for i in range(EPOCHS):
+        model.train_episode()
+
+        if i%SAVE_EVERY == 0:
+            print("MODEL saved at iteration: ", i)
+            model.save_checkpoint()

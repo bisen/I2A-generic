@@ -181,7 +181,7 @@ if __name__ == '__main__':
     # set up placeholders
     env_model = EnvModel(pong)
 
-    for it, states, actions, rewards, next_states, is_done in next_batch(1):
+    for it, states, actions, rewards, next_states, is_done in next_batch(10):
 
         inputs = env_model.convert_input(states, actions)
         next_states = env_model.normalize_states(next_states)
