@@ -18,8 +18,8 @@ REWARD_FACTOR = 0.1
 SAVE_EVERY = 100
 
 class A2C:
-    def __init__(self, game):
-        self.game = gym.make(game)
+    def __init__(self, game, sess=None):
+        self.game = game
         self.num_actions = 2
         self.state_size = self.game.observation_space.shape
 
@@ -35,11 +35,19 @@ class A2C:
         self.actor_probs = self.actor()
         self.loss_val = self.loss()
         self.train_op = self.optimizer()
-        self.session = tf.Session()
-        self.session.run(tf.global_variables_initializer())
+
+        if sess:
+            self.session = sess
+            self.session.run(tf.global_variables_initializer())
+        else:
+            self.session = tf.Session()
+            self.session.run(tf.global_variables_initializer())
+
+        with tf.variable_scope('a2c'):
+            trainable_vars = tf.trainable_variables()
 
         # For saving/loading models
-        self.saver = tf.train.Saver()
+        self.saver = tf.train.Saver(trainable_vars)
 
     # Load the last saved checkpoint during training or used by test
     def load_last_checkpoint(self):
@@ -52,7 +60,7 @@ class A2C:
         self.saver.save(self.session, 'models/a2c/a2c_saved_model')
 
     def next_action(self, state):
-        self.load_last_checkpoint()
+        # self.load_last_checkpoint()
         actDist = self.session.run( self.actor_probs, feed_dict={ self.state_input: np.array( [ state ] ) } )
         action_idx= np.random.choice( self.num_actions, 1, p=actDist[0] )[0]
         if action_idx == 0:
@@ -162,7 +170,7 @@ if __name__ == '__main__':
     # Change __main__ to train your agent for 1000 episodes and print the average reward over the last 100 episodes.
     # The code below is similar to what our autograder will be running.
 
-    model = A2C('Pong-v0')
+    model = A2C(gym.make('Pong-v0'))
     for i in range(EPOCHS):
         model.train_episode()
 

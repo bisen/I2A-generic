@@ -1,8 +1,12 @@
 import tensorflow as tf
 import numpy as np
+import game_utils
 from environment import EnvModel
 from a2c_agent import A2C
-import game_utils
+import a2c_agent
+
+MODEL_PATH_A2C = 'models/a2c/a2c_saved_model'
+MODEL_PATH_ENV = 'models/env/env_saved_model'
 
 # a standard nn of conv layers and fully connected one
 class I2A():
@@ -111,7 +115,7 @@ class ImaginationCore():
             action = self.a2c.next_action(state)
             rollout_batch_size = batch_size
 
-        print(action.shape)
+        # print(action.shape)
         for step in range(self.num_rollouts):
             imagined_state, imagined_reward = self.env_model.forward(state, action)
 
@@ -129,13 +133,44 @@ class ImaginationCore():
         return rollout_states, rollout_rewards
 
 
+class ImportA2CGraph():
+    """  Importing and running isolated TF graph """
+    def __init__(self, game):
+        # Create local graph and use it in the session
+        self.graph = tf.Graph()
+        self.sess = tf.Session(graph=self.graph)
+        with self.graph.as_default():
+            # import saved model
+            self.model = A2C(game, self.sess)
+            self.model.load_last_checkpoint()
+
+
+class ImportEnvGraph():
+    """  Importing and running isolated TF graph """
+    def __init__(self, game, loc):
+        # Create local graph and use it in the session
+        self.graph = tf.Graph()
+        self.sess = tf.Session(graph=self.graph)
+        with self.graph.as_default():
+            # import saved model
+            self.model = EnvModel(game, self.sess)
+            self.model.load_last_checkpoint()
+
 if __name__ == '__main__':
-    game = game_utils.pong
-    a2c = A2C(game.name)
-    env_model = EnvModel(len(game.pixels))
-    env_model.load_last_checkpoint()
+    pong = game_utils.pong
+
+    a2c = ImportA2CGraph(pong.game)
+    print(a2c.model.next_action(a2c.model.game.reset()))
+
+    env = ImportEnvGraph(pong, MODEL_PATH_ENV)
 
     # session = tf.Session()
     # session.run(tf.global_variables_initializer())
+
+    # a2c.model.next_action(a2c.model.game.reset())
+    # env_model = EnvModel(len(game.pixels))
+    # env_model.load_last_checkpoint()
+
+
     # core = ImaginationCore(1, 1, 1, 1, env_model, a2c, False)
     # session.run(core.imagine(a2c.game.reset()))
