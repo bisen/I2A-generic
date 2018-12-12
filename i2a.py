@@ -160,7 +160,7 @@ if __name__ == '__main__':
     pong = game_utils.pong
 
     a2c = ImportA2CGraph(pong.game)
-    print(a2c.model.next_action(a2c.model.game.reset()))
+    print(a2c.model.next_action([a2c.model.game.reset(), a2c.model.game.reset()][-2:]))
 
     env = ImportEnvGraph(pong, MODEL_PATH_ENV)
 

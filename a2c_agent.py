@@ -8,53 +8,54 @@ def log(x):
 
 ## HYPERPARAMETERS
 GAMMA = 0.99
-LEARNING_RATE = 0.0002
+LEARNING_RATE = 0.00001
 ENTROPY_FACTOR = 0.05
-EPOCHS = 10000
-TIMESTEPS = 1000
+EPOCHS = 1000
+TIMESTEPS = 2500
 DECAY = 0.99
 EPSILON = 1e-5
-REWARD_FACTOR = 0.1
+REWARD_FACTOR = 1.0
 SAVE_EVERY = 100
+VALUE_FACTOR = .5
+RENDER = False
+MINIBATCH_SIZE = 1
+PER_TIMESTEP_REWARD = 0.00000
 
 class A2C:
     def __init__(self, game, sess=None):
         self.game = game
-        self.num_actions = 2
+        self.num_actions = 3
         self.state_size = self.game.observation_space.shape
-
-        self.state_input = tf.placeholder(tf.float32, [None] + list(self.state_size))
-
-        # Define any additional placeholders needed for training your agent here:
-
-        self.rewards = tf.placeholder( shape = [ None ], dtype = tf.float32 )
-        self.actions = tf.placeholder( shape = [ None ], dtype = tf.int32 )
-
-        self.common = self.common()
-        self.state_value = self.critic()
-        self.actor_probs = self.actor()
-        self.loss_val = self.loss()
-        self.train_op = self.optimizer()
-
-        if sess:
-            self.session = sess
-            self.session.run(tf.global_variables_initializer())
-        else:
-            self.session = tf.Session()
-            self.session.run(tf.global_variables_initializer())
-
         with tf.variable_scope('a2c'):
-            trainable_vars = tf.trainable_variables()
+            self.state_input = tf.placeholder(tf.float32, [None, 2  ] + list(self.state_size))
+
+            # Define any additional placeholders needed for training your agent here:
+
+            self.rewards = tf.placeholder( shape = [ None ], dtype = tf.float32 )
+            self.actions = tf.placeholder( shape = [ None ], dtype = tf.int32 )
+
+            self.common = self.common()
+            self.state_value = self.critic()
+            self.actor_probs = self.actor()
+            self.loss_val = self.loss()
+            self.train_op = self.optimizer()
+
+            if sess:
+                self.session = sess
+                self.session.run(tf.global_variables_initializer())
+            else:
+                self.session = tf.Session()
+                self.session.run(tf.global_variables_initializer())
+
+
+        trainable_vars = tf.trainable_variables()
 
         # For saving/loading models
         self.saver = tf.train.Saver(trainable_vars)
 
     # Load the last saved checkpoint during training or used by test
     def load_last_checkpoint(self):
-        try:
-            self.saver.restore(self.session, tf.train.latest_checkpoint('models/a2c/'))
-        except:
-            print("failed to load check point")
+        self.saver.restore(self.session, tf.train.latest_checkpoint('models/a2c/'))
 
     def save_checkpoint(self):
         self.saver.save(self.session, 'models/a2c/a2c_saved_model')
@@ -63,24 +64,25 @@ class A2C:
         # self.load_last_checkpoint()
         actDist = self.session.run( self.actor_probs, feed_dict={ self.state_input: np.array( [ state ] ) } )
         action_idx= np.random.choice( self.num_actions, 1, p=actDist[0] )[0]
+        # need to be fixed here, UnboundLocalError: local variable 'action' referenced before assignment
         if action_idx == 0:
             action = 2
         elif action_idx == 1:
             action = 5
-        return action
+        return action_idx
 
     def optimizer(self):
         """
         :return: Optimizer for your loss function
         """
-        return tf.train.RMSPropOptimizer( LEARNING_RATE, decay=DECAY, epsilon=EPSILON ).minimize( self.loss_val )
+        return tf.train.AdamOptimizer(LEARNING_RATE).minimize( self.loss_val )
 
     def common(self):
-        resized_input = tf.image.convert_image_dtype(tf.image.resize_images(self.state_input[:,24:,:,:], [96,96]), tf.float32)
-        h0 = tf.nn.elu(tf.layers.batch_normalization(tf.layers.conv2d(resized_input, 8, [7,7], (3,3), padding='valid', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())))
-#        h1 = tf.nn.elu(tf.layers.batch_normalization(tf.layers.conv2d(h0, 1, [5,5], (2,2), padding='valid', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())))
-#        h2 = tf.nn.elu(tf.layers.batch_normalization(tf.layers.conv2d(h1, 1, [5,5], (2,2), padding='valid', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())))
-        h3 = tf.nn.elu(tf.layers.batch_normalization(tf.layers.dense(tf.layers.flatten(h0), 32, kernel_initializer=tf.contrib.layers.xavier_initializer())))
+        h0 = tf.nn.elu(tf.layers.batch_normalization(tf.layers.conv3d((self.state_input/255.0), 4, [1,8,8], (1, 4,4), padding='valid', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())))
+        h1 = tf.nn.elu(tf.layers.batch_normalization(tf.layers.conv3d(h0, 8, [1,4,4], (1,2,2), padding='valid', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())))
+        h2 = tf.nn.elu(tf.layers.batch_normalization(tf.layers.conv3d(h1, 8, [1,4,4], (1,2,2), padding='valid', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())))
+        #import pdb; pdb.set_trace()
+        h3 = tf.nn.elu(tf.layers.batch_normalization(tf.layers.dense(tf.layers.flatten(h2), 128, kernel_initializer=tf.contrib.layers.xavier_initializer())))
         return h3
 
     def critic(self):
@@ -90,7 +92,9 @@ class A2C:
         :return: A tensor of shape [num_states] representing the estimated value of each state in the trajectory.
         """
         #import pdb; pdb.set_trace()
-        output = tf.layers.dense(self.common, 1, kernel_initializer=tf.contrib.layers.xavier_initializer())
+        output = tf.nn.elu(tf.layers.batch_normalization(tf.layers.dense(self.common, 32, kernel_initializer=tf.contrib.layers.xavier_initializer())))
+        output = tf.nn.elu(tf.layers.batch_normalization(tf.layers.dense(output, 16, kernel_initializer=tf.contrib.layers.xavier_initializer())))
+        output = tf.nn.elu(tf.layers.batch_normalization(tf.layers.dense(output, 1, kernel_initializer=tf.contrib.layers.xavier_initializer())))
         return output
 
     def actor(self):
@@ -100,7 +104,9 @@ class A2C:
         :return: A tensor of shape [num_states, num_actions] representing the probability distribution
             over actions that is generated by your actor.
         """
-        output = tf.layers.dense(self.common, self.num_actions, kernel_initializer=tf.contrib.layers.xavier_initializer())
+        output = tf.nn.elu(tf.layers.batch_normalization(tf.layers.dense(self.common, 64, kernel_initializer=tf.contrib.layers.xavier_initializer())))
+        output = tf.nn.elu(tf.layers.batch_normalization(tf.layers.dense(output, 32, kernel_initializer=tf.contrib.layers.xavier_initializer())))
+        output = tf.nn.elu(tf.layers.batch_normalization(tf.layers.dense(output, self.num_actions, kernel_initializer=tf.contrib.layers.xavier_initializer())))
         return tf.nn.softmax(output)
 
 
@@ -118,7 +124,7 @@ class A2C:
         # loss for actor
         aLoss = -tf.reduce_mean(log(actProbs) * advantage)
         entropy = -tf.reduce_mean(actProbs * log(actProbs))
-        return aLoss+cLoss + 0.05*entropy
+        return VALUE_FACTOR*cLoss + aLoss + 0.05*entropy
 
     def train_episode(self):
         """
@@ -127,42 +133,54 @@ class A2C:
         add any return values to this method.
         """
 
-        st = self.game.reset()
-        states = []
-        rewards = []
-        actions = []
+        c_actions = []
+        c_rewards = []
+        c_states = []
 
-        for t in range(TIMESTEPS):
-            #self.game.render()
-            actDist = self.session.run( self.actor_probs, feed_dict={ self.state_input: np.array( [ st ] ) } )
-            action_idx= np.random.choice( self.num_actions, 1, p=actDist[0] )[0]
-            if action_idx == 0:
-                action = 2
-            elif action_idx == 1:
-                action = 5
 
-            st1, reward, done, _ = self.game.step(action)
+        for m in range(MINIBATCH_SIZE):
+            rrr = []
+            st = self.game.reset()
+            sss = [st, st]
 
-            states.append(st)
-            rewards.append(reward * REWARD_FACTOR)
-            actions.append(action_idx)
+            for t in range(TIMESTEPS):
+                if RENDER:
+                    self.game.render()
+                actDist = self.session.run( self.actor_probs, feed_dict={ self.state_input: np.array( [ sss[-2:] ] ) } )
+                action_idx= np.random.choice( self.num_actions, 1, p=actDist[0] )[0]
+                if action_idx == 0:
+                    action = 0
+                elif action_idx == 1:
+                    action = 2
+                elif action_idx == 2:
+                    action = 5
 
-            st = st1
+                st1, reward, done, _ = self.game.step(action)
 
-            if done or t == TIMESTEPS - 1:
-                d_r = [0]
-                #import pdb; pdb.set_trace()
-                reversed_rewards = rewards[:]
-                reversed_rewards.reverse()
-                for r in reversed_rewards:
-                   d_r.append( d_r[ -1 ] * GAMMA + r )
-                disRs = d_r[1:]
-                disRs.reverse()
+                c_states.append(sss[-2:])
+                rrr.append(reward * REWARD_FACTOR + PER_TIMESTEP_REWARD)
+                c_actions.append(action_idx)
 
-                _ , loss = self.session.run( [self.train_op, self.loss_val], feed_dict= { self.state_input: np.array( states ), self.rewards: np.array( disRs ), self.actions: np.array( actions ) } )
-                print( "rewards: ", np.sum(rewards ))
-                print( "loss: ", loss )
-                break
+                sss.append(st1)
+
+                if done or t == TIMESTEPS - 1:
+                    print(np.sum(rrr))
+                    d_r = [0]
+                    #import pdb; pdb.set_trace()
+                    reversed_rewards = rrr[:]
+                    reversed_rewards.reverse()
+                    for r in reversed_rewards:
+                       d_r.append( d_r[ -1 ] * GAMMA + r )
+                    disRs = d_r[1:]
+                    disRs.reverse()
+
+                    c_rewards = c_rewards + disRs
+
+                    break
+
+        _ , loss = self.session.run( [self.train_op, self.loss_val], feed_dict= { self.state_input: np.array( c_states ), self.rewards: np.array( c_rewards ), self.actions: np.array( c_actions ) } )
+        print( "rewards: ", np.mean(c_rewards) )
+        print( "loss: ", loss )
         return
 
 
@@ -171,9 +189,10 @@ if __name__ == '__main__':
     # The code below is similar to what our autograder will be running.
 
     model = A2C(gym.make('Pong-v0'))
-    for i in range(EPOCHS):
-        model.train_episode()
-
-        if i%SAVE_EVERY == 0:
-            print("MODEL saved at iteration: ", i)
-            model.save_checkpoint()
+    model.save_checkpoint()
+    # for i in range(EPOCHS):
+    #     model.train_episode()
+    #
+    #     if i%SAVE_EVERY == 0:
+    #         print("MODEL saved at iteration: ", i)
+    #         model.save_checkpoint()

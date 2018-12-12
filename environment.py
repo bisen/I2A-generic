@@ -156,7 +156,7 @@ class EnvModel:
 def next_actions(states):
     actions = []
     for s in states:
-        actions.append(agent.next_action(s))
+        actions.append(agent.next_action([s, s][-2:]))
     return actions
 
 # play BATCH_SIZE games using the policy given by next_actions
