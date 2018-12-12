@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import gym
+from game_utils import normalize_states
 
 ## STABLE LOG
 def log(x):
@@ -8,26 +9,27 @@ def log(x):
 
 ## HYPERPARAMETERS
 GAMMA = 0.99
-LEARNING_RATE = 0.00001
-ENTROPY_FACTOR = 0.05
+LEARNING_RATE = 0.000001
+ENTROPY_FACTOR = 0.01
 EPOCHS = 1000
 TIMESTEPS = 2500
 DECAY = 0.99
 EPSILON = 1e-5
 REWARD_FACTOR = 1.0
 SAVE_EVERY = 100
-VALUE_FACTOR = .5
+VALUE_FACTOR = 1.0
 RENDER = False
-MINIBATCH_SIZE = 1
-PER_TIMESTEP_REWARD = 0.00000
+MINIBATCH_SIZE = 8
+PER_TIMESTEP_REWARD = 0
+STACK_SIZE = 2
 
 class A2C:
     def __init__(self, game, sess=None):
         self.game = game
         self.num_actions = 3
-        self.state_size = self.game.observation_space.shape
+        self.state_size = [2, 186, 160, 3]
         with tf.variable_scope('a2c'):
-            self.state_input = tf.placeholder(tf.float32, [None, 2  ] + list(self.state_size))
+            self.state_input = tf.placeholder(tf.float32, [None] + self.state_size)
 
             # Define any additional placeholders needed for training your agent here:
 
@@ -62,13 +64,14 @@ class A2C:
 
     def next_action(self, state):
         # self.load_last_checkpoint()
-        sss = [state, state][-2:]
-        actDist = self.session.run( self.actor_probs, feed_dict={ self.state_input: np.array( [ sss ] ) } )
+        actDist = self.session.run( self.actor_probs, feed_dict={ self.state_input: np.array( normalize_states([ state ]) ) } )
         action_idx= np.random.choice( self.num_actions, 1, p=actDist[0] )[0]
         # need to be fixed here, UnboundLocalError: local variable 'action' referenced before assignment
         if action_idx == 0:
+            action = 0
+        if action_idx == 1:
             action = 2
-        elif action_idx == 1:
+        elif action_idx == 2:
             action = 5
         return action_idx
 
@@ -79,9 +82,11 @@ class A2C:
         return tf.train.AdamOptimizer(LEARNING_RATE).minimize( self.loss_val )
 
     def common(self):
-        h0 = tf.nn.elu(tf.layers.batch_normalization(tf.layers.conv3d((self.state_input/255.0), 4, [1,8,8], (1, 4,4), padding='valid', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())))
+        states = tf.reshape(tf.image.resize_images(tf.reshape(self.state_input, [-1,186,160,3]), [93,80]), [-1,2,93,80,3])/255.0
+
+        h0 = tf.nn.elu(tf.layers.batch_normalization(tf.layers.conv3d(states, 4, [1,4,4], (1,2,2), padding='valid', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())))
         h1 = tf.nn.elu(tf.layers.batch_normalization(tf.layers.conv3d(h0, 8, [1,4,4], (1,2,2), padding='valid', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())))
-        h2 = tf.nn.elu(tf.layers.batch_normalization(tf.layers.conv3d(h1, 8, [1,4,4], (1,2,2), padding='valid', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())))
+        h2 = tf.nn.elu(tf.layers.batch_normalization(tf.layers.conv3d(h1, 16, [1,4,4], (1,2,2), padding='valid', kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())))
         #import pdb; pdb.set_trace()
         h3 = tf.nn.elu(tf.layers.batch_normalization(tf.layers.dense(tf.layers.flatten(h2), 128, kernel_initializer=tf.contrib.layers.xavier_initializer())))
         return h3
@@ -93,8 +98,8 @@ class A2C:
         :return: A tensor of shape [num_states] representing the estimated value of each state in the trajectory.
         """
         #import pdb; pdb.set_trace()
-        output = tf.nn.elu(tf.layers.batch_normalization(tf.layers.dense(self.common, 32, kernel_initializer=tf.contrib.layers.xavier_initializer())))
-        output = tf.nn.elu(tf.layers.batch_normalization(tf.layers.dense(output, 16, kernel_initializer=tf.contrib.layers.xavier_initializer())))
+        output = tf.nn.elu(tf.layers.batch_normalization(tf.layers.dense(self.common, 64, kernel_initializer=tf.contrib.layers.xavier_initializer())))
+        output = tf.nn.elu(tf.layers.batch_normalization(tf.layers.dense(output, 32, kernel_initializer=tf.contrib.layers.xavier_initializer())))
         output = tf.nn.elu(tf.layers.batch_normalization(tf.layers.dense(output, 1, kernel_initializer=tf.contrib.layers.xavier_initializer())))
         return output
 
@@ -142,12 +147,12 @@ class A2C:
         for m in range(MINIBATCH_SIZE):
             rrr = []
             st = self.game.reset()
-            sss = [st, st]
+            sss = [st] * STACK_SIZE
 
             for t in range(TIMESTEPS):
                 if RENDER:
                     self.game.render()
-                actDist = self.session.run( self.actor_probs, feed_dict={ self.state_input: np.array( [ sss[-2:] ] ) } )
+                actDist = self.session.run( self.actor_probs, feed_dict={ self.state_input: np.array( normalize_states([ sss[-STACK_SIZE:] ]) ) } )
                 action_idx= np.random.choice( self.num_actions, 1, p=actDist[0] )[0]
                 if action_idx == 0:
                     action = 0
@@ -158,7 +163,7 @@ class A2C:
 
                 st1, reward, done, _ = self.game.step(action)
 
-                c_states.append(sss[-2:])
+                c_states.append(sss[-STACK_SIZE:])
                 rrr.append(reward * REWARD_FACTOR + PER_TIMESTEP_REWARD)
                 c_actions.append(action_idx)
 
@@ -179,7 +184,7 @@ class A2C:
 
                     break
 
-        _ , loss = self.session.run( [self.train_op, self.loss_val], feed_dict= { self.state_input: np.array( c_states ), self.rewards: np.array( c_rewards ), self.actions: np.array( c_actions ) } )
+        _ , loss = self.session.run( [self.train_op, self.loss_val], feed_dict= { self.state_input: np.array( normalize_states(c_states)), self.rewards: np.array( c_rewards ), self.actions: np.array( c_actions ) } )
         print( "rewards: ", np.mean(c_rewards) )
         print( "loss: ", loss )
         return
