@@ -90,14 +90,14 @@ class RolloutEncoder():
 
 # imagination core (IC) predicts the next time step conditioned on an action sampled from the rollout policy π
 class ImaginationCore():
-    def __init__(self, num_rollouts, num_states, num_actions, num_rewards, env_model, a2c, full_rollout=True):
+    def __init__(self, num_rollouts, num_states, num_actions, num_rewards, env, a2c, full_rollout=True):
         self.num_rollouts = num_rollouts
         self.num_states = num_states
         self.num_actions = num_actions
         self.num_rewards = num_rewards
         self.full_rollout = full_rollout
 
-        self.env_model = env_model
+        self.env = env
         self.a2c = a2c
 
 
@@ -107,18 +107,30 @@ class ImaginationCore():
         rollout_states = []
         rollout_rewards = []
 
-        if self.full_rollout:
-            action = np.array([[[i] for i in range(self.num_actions)] for j in range(batch_size)])
-            action = action.reshape((-1,))
-            rollout_batch_size = batch_size * self.num_actions
-        else:
-            action = self.a2c.next_action(state)
-            rollout_batch_size = batch_size
+        # if self.full_rollout:
+        #     action = np.array([[[i] for i in range(self.num_actions)] for j in range(batch_size)])
+        #     action = action.reshape((-1,))
+        #     rollout_batch_size = batch_size * self.num_actions
+        # else:
+        #     action = self.a2c.model.next_action(state)
+        #     rollout_batch_size = batch_size
 
-        # print(action.shape)
+        # action = np.array([[[i] for i in range(self.num_actions)] for j in range(batch_size)])
+        # action = action.reshape((-1,))
+        with a2c.graph.as_default():
+            action = self.a2c.model.next_action(state)
+        rollout_batch_size = batch_size * self.num_actions
+
+        # test
+        states = [state for i in range(rollout_batch_size)]
+        actions = []
+        for s in states:
+            actions.append(action)
+
         for step in range(self.num_rollouts):
-            imagined_state, imagined_reward = self.env_model.forward(state, action)
-
+            with env.graph.as_default():
+                imagined_state, imagined_reward = env.model.forward(states, actions, rollout_batch_size)
+            print('here')
             # convertion
 
             onehot_reward = tf.zeros(rollout_batch_size, self.num_rewards)
@@ -160,17 +172,10 @@ if __name__ == '__main__':
     pong = game_utils.pong
 
     a2c = ImportA2CGraph(pong.game)
-    print(a2c.model.next_action([a2c.model.game.reset(), a2c.model.game.reset()][-2:]))
-
     env = ImportEnvGraph(pong, MODEL_PATH_ENV)
 
-    # session = tf.Session()
-    # session.run(tf.global_variables_initializer())
+    session = tf.Session()
+    session.run(tf.global_variables_initializer())
 
-    # a2c.model.next_action(a2c.model.game.reset())
-    # env_model = EnvModel(len(game.pixels))
-    # env_model.load_last_checkpoint()
-
-
-    # core = ImaginationCore(1, 1, 1, 1, env_model, a2c, False)
-    # session.run(core.imagine(a2c.game.reset()))
+    core = ImaginationCore(1, 1, 1, 1, env, a2c, False)
+    core.imagine(a2c.model.game.reset())

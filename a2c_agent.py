@@ -42,10 +42,10 @@ class A2C:
 
             if sess:
                 self.session = sess
-                self.session.run(tf.global_variables_initializer())
+
             else:
                 self.session = tf.Session()
-                self.session.run(tf.global_variables_initializer())
+            self.session.run(tf.global_variables_initializer())
 
 
         trainable_vars = tf.trainable_variables()
@@ -62,7 +62,8 @@ class A2C:
 
     def next_action(self, state):
         # self.load_last_checkpoint()
-        actDist = self.session.run( self.actor_probs, feed_dict={ self.state_input: np.array( [ state ] ) } )
+        sss = [state, state][-2:]
+        actDist = self.session.run( self.actor_probs, feed_dict={ self.state_input: np.array( [ sss ] ) } )
         action_idx= np.random.choice( self.num_actions, 1, p=actDist[0] )[0]
         # need to be fixed here, UnboundLocalError: local variable 'action' referenced before assignment
         if action_idx == 0:

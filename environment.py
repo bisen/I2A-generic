@@ -23,6 +23,7 @@ def map_pixels(states):
 class EnvModel:
     def __init__(self, game, sess=None):
         self.n_pixels = len(game.pixels)
+        self.game = game
         # self.n_rewards = n_rewards
         with tf.variable_scope('env'):
             self.inputs = tf.placeholder(tf.float32, [None, 186, 160, 3 + game.num_actions])
@@ -37,10 +38,9 @@ class EnvModel:
 
             if sess:
                 self.session = sess
-                self.session.run(tf.global_variables_initializer())
             else:
                 self.session = tf.Session()
-                self.session.run(tf.global_variables_initializer())
+            self.session.run(tf.global_variables_initializer())
 
         trainable_vars = tf.trainable_variables()
 
@@ -104,9 +104,9 @@ class EnvModel:
 
         return image, reward
 
-    def forward(self, states, actions):
+    def forward(self, states, actions, batch_size):
         # self.load_last_checkpoint()
-        return self.session.run(self.predict(), feed_dict={self.inputs: self.convert_input(states, actions)})
+        return self.session.run(self.predict(), feed_dict={self.inputs: self.convert_input(states, actions, batch_size)})
 
     def image_loss_function(self):
         onehot = tf.one_hot(self.targets, self.n_pixels)
@@ -129,13 +129,13 @@ class EnvModel:
     def train_episode(self, feed_dict):
         return self.session.run([self.loss, self.optimizer], feed_dict=feed_dict)
 
-    def convert_input(self, states, actions):
+    def convert_input(self, states, actions, batch_size):
         # delete top rows, make top/bottom borders black
         states = self.normalize_states(states)
 
         # convert actions to onehot representation
-        onehot_actions = np.zeros((BATCH_SIZE, 186, 160, pong.num_actions))
-        onehot_actions[range(BATCH_SIZE), actions] = 1
+        onehot_actions = np.zeros((batch_size, 186, 160, self.game.num_actions))
+        onehot_actions[range(batch_size), actions] = 1
 
         # concatenate states and actions to feed to optimizer
         inputs = np.concatenate([states, onehot_actions], 3)
@@ -156,7 +156,7 @@ class EnvModel:
 def next_actions(states):
     actions = []
     for s in states:
-        actions.append(agent.next_action([s, s][-2:]))
+        actions.append(agent.next_action(s))
     return actions
 
 # play BATCH_SIZE games using the policy given by next_actions
@@ -183,11 +183,12 @@ if __name__ == '__main__':
 
     for it, states, actions, rewards, next_states, is_done in next_batch(10):
 
-        inputs = env_model.convert_input(states, actions)
+        inputs = env_model.convert_input(states, actions, BATCH_SIZE)
         next_states = env_model.normalize_states(next_states)
         # convert target states to indexes, using map_pixels function
         # there are only 5 different kinds of pixels
         targets = map_pixels(next_states)
+        # env_model.forward(states, actions, BATCH_SIZE)
         loss, _ = env_model.train_episode(feed_dict={
             env_model.inputs: inputs,
             env_model.targets: targets,
