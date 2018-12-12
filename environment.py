@@ -174,6 +174,7 @@ if __name__ == '__main__':
     # training
     # set up placeholders
     env_model = EnvModel(pong)
+    env_model.load_last_checkpoint()
 
     for it, states, actions, rewards, next_states, is_done in next_batch(10):
 
@@ -182,11 +183,11 @@ if __name__ == '__main__':
         # convert target states to indexes, using map_pixels function
         # there are only 5 different kinds of pixels
         targets = map_pixels(next_states)
-        # env_model.forward(states, actions, BATCH_SIZE)
+        env_model.forward(states, actions, BATCH_SIZE)
         loss, _ = env_model.train_episode(feed_dict={
             env_model.inputs: inputs,
             env_model.targets: targets,
             env_model.target_rewards: rewards
         })
         print(it, loss)
-    env_model.save_checkpoint()
+        env_model.save_checkpoint()
