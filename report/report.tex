@@ -37,7 +37,9 @@ In this work, we focus on applying I2A to Pong. We
 
 \section{Background}
 
-In this section, we provide a high-level overview of the I2A architecture as described in the original work. I2A unifies a model-free architecture and a model-based one. The model-based component of I2A is also referred to as the imagination engine, and consists of a sequence of \emph{imagination cores} that collectively generate a predicted future trajectory.
+In this section, we provide a high-level overview of the I2A architecture as described in the original work. I2A unifies a model-free 
+architecture and a model-based one. The model-based component of I2A is also referred to as the imagination engine, and consists of a 
+sequence of \emph{imagination cores} that collectively generate a predicted future trajectory. Each imagination core makes use of a pre-trained policy network and an environment model. The policy network simply predicts the best action to take given an input state. The environment model takes an input state and the action returned by the policy network, and predicts the next state from taking the action. The predicted next state is fed from one imagination core to the subsequent one, so in this way, the output of the imagination cores is a sequence of predicted states (or trajectory). This trajectory provides additional context when learning a policy; together, the model-free policy and the imagine engine are combined to train a unified policy.
 
 \begin{figure*}
 \centering
@@ -79,7 +81,9 @@ Actions are taken with the \verb|step| function, which returns the resulting dat
 
 \section{Methodology}
 
-The model is trained in three phases. First, a model-free agent is trained using 
+The model is trained in three phases. First, a model-free agent is trained by playing the game and using
+A2C to learn. Once the model-free agent is trained, its policy is used to train the environment model.
+The environment is trained by using the model-free agent to play the game.
 
 \subsection{Model-free agent}
 
