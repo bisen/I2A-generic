@@ -83,11 +83,26 @@ Actions are taken with the \verb|step| function, which returns the resulting dat
 
 The model is trained in three phases. First, a model-free agent is trained by playing the game and using
 A2C to learn. Once the model-free agent is trained, its policy is used to train the environment model.
-The environment is trained by using the model-free agent to play the game.
+The environment is trained by using the model-free agent's policy to play the game; by doing so it learns the
+environment.
 
 \subsection{Model-free agent}
 
 \subsection{Environment model}
+
+The computation graph of the environment model's network begins by using the policy described in the
+previous section to take an action. Given an action and current state, recall that the environment model
+predicts the next state and reward obtained.
+
+Recall that the state returned by the OpenAI Gym API is just an RGB image, and due to normalization 
+described in the Dataset section, there are only five distinct kinds of pixels: border pixels (black),
+background pixels (brown), ball pixels (white), player pixels (green), and opponent pixels (orange).
+Therefore, the each pixel in a given state is first mapped to a corresponding index (1 - 5). Then, the action
+taken by the model-free agent is converted to a one-hot representation, and concatenated to the
+state data. This encodes all state and action information that the environment model needs to begin training.
+
+Next, the input data is sent through a series of convolutional layers, consisting of higher level logical units
+called ``basic blocks", as described in the paper. 
 
 \subsection{I2A}
 
