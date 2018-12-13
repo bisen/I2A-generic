@@ -85,16 +85,15 @@ class A2C:
 
     def next_action(self, state):
         # self.load_last_checkpoint()
-        actDist = self.session.run( self.actor_probs, feed_dict={ self.state_input: np.array( normalize_states([ state ]) ) } )
+        actDist = self.session.run( self.actor_probs, feed_dict={ self.state_input: np.array( [ state ] ) } )
         action_idx= np.random.choice( self.num_actions, 1, p=actDist[0] )[0]
-        # need to be fixed here, UnboundLocalError: local variable 'action' referenced before assignment
         if action_idx == 0:
             action = 0
         if action_idx == 1:
             action = 2
         elif action_idx == 2:
             action = 5
-        return action_idx
+        return action
 
     def optimizer(self):
         """
@@ -213,10 +212,10 @@ class A2C:
 
 if __name__ == '__main__':
     model = A2C(gym.make('Pong-v0'))
-
-    for i in range(EPOCHS):
-        model.train_episode()
-
-        if i%SAVE_EVERY == 0:
-            print("MODEL saved at iteration: ", i)
-            model.save_checkpoint()
+    model.save_checkpoint()
+    # for i in range(EPOCHS):
+    #     model.train_episode()
+    #
+    #     if i%SAVE_EVERY == 0:
+    #         print("MODEL saved at iteration: ", i)
+    #         model.save_checkpoint()

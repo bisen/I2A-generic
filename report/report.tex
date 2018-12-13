@@ -19,7 +19,7 @@ Abstract here.
 
 In recent years, deep learning techniques have been successfully adapted and applied to problems
 in reinforcement learning. In this project, we survey and evaluate one such technique, called \emph{imagination augmented agents},
-(or \emph{I2A}). This technique was initially developed and published by Weber \emph{et. al.} at DeepMind \cite{}. In their original
+(or \emph{I2A}). This technique was initially developed and published by Weber \emph{et. al.} at DeepMind \cite{NIPS}. In their original
 work, the authors describe the novel I2A as one that combines aspects of \emph{model-free} learning, in which an agent makes decisions
 based only on its current observations, with \emph{model-based} learning, where the agent attempts to learn about its environment
 in addition to a policy. In their work, the model-free agent is augmented with a model-based \emph{imagination engine}, which
@@ -44,7 +44,7 @@ I2A unifies a model-free
 architecture and a model-based one. The model-based component of I2A is also referred to as the imagination engine, and consists of a 
 sequence of \emph{imagination cores} that collectively generate a predicted future trajectory. Each imagination core makes use of a pre-trained policy network and an environment model. The policy network simply predicts the best action to take given an input state. The environment model takes an input state and the action returned by the policy network, and predicts the next state from taking the action. The predicted next state is fed from one imagination core to the subsequent one, so in this way, the output of the imagination cores is a sequence of predicted states (or trajectory). This trajectory provides additional context when learning a policy; together, the model-free policy and the imagine engine are combined to train a unified policy.
 
-\section{Dataset}
+\section{Game Environment}
 We use the Arcade Learning Environment (ALE) to simulate playing Atari games. ALE has been integrated
 into OpenAI Gym, which provides a standardized interface for taking actions and retrieving the resulting new
 state, reward, etc. The game's state is simply the RGB image of a frame at a given point in time.
@@ -92,10 +92,10 @@ environment. In the following, we outline the structure of our TensorFlow progra
 \subsection{Model-free agent}
 ALE provides two different state spaces for playing Atari games, RAM content and the rendered pixels. We decided to use the pixel output, and stacked the current frame on top of the previous one to give the network some directional information which would in principle make our model free agent easier to train.
 
-While the original paper used a A3C (Asynchronous Actor-Critic) architecture as its model free policy network, we decided to use a simpler A2C architecure.
+While the original paper used a A3C (Asynchronous Actor-Critic) architecture as its model free policy network, we decided to use a simpler A2C architecture.
 The main difference is that A3C uses independent workers to update a shared policy network asynchronously, while A2C updates its weights sequentially.
 A2C networks are harder to train, but easier to implement.
-A2C contains an Actor takes takes in an observation and produces a probabilty distribution over possible actions and a Critic that also takes in an observation and assigns a numeric value to the observation which is then used to determine how advantageous a certain action is given the observed state.
+A2C contains an Actor takes takes in an observation and produces a probability distribution over possible actions and a Critic that also takes in an observation and assigns a numeric value to the observation which is then used to determine how advantageous a certain action is given the observed state.
 While these can be two separate networks, we decided to use one network with two heads instead.
 Input first goes through a stack of three convolutional layers and a fully connected layer that forms the trunk.
 Output of this network is fed into separate Actor and Critic components which are two fully-connected layers and one output layer each.
@@ -109,7 +109,7 @@ designed for the specific game in mind; however, for this project we used a modi
 MiniPacman environment model.
 
 Recall that the state returned by the OpenAI Gym API is just an RGB image, and due to normalization 
-described in the Dataset section, there are only five distinct kinds of pixels: border pixels (black),
+described in the Game Environment section, there are only five distinct kinds of pixels: border pixels (black),
 background pixels (brown), ball pixels (white), player pixels (green), and opponent pixels (orange).
 Therefore, the each pixel in a given state is first mapped to a corresponding index (1 - 5). Then, the action
 taken by the model-free agent is converted to a one-hot representation, and concatenated to the
@@ -124,7 +124,7 @@ convolutional layers, the output of which is the final output of a basic block.
 
 \subsection{I2A}
 
-I2A combines the knowledge learned by the models from the previous two steps.
+I2A combines the knowledge learned by the models from the previous two steps. Like the model-free A2C, I2A learns a policy, but it incorporates information from the environment model.
 
 \section{Results}
 
@@ -132,6 +132,17 @@ I2A combines the knowledge learned by the models from the previous two steps.
 
 \section{Discussion}
 
-\subsection{Limitations}
+In this section, we discuss the issues encountered when studying I2A and implementing an architecture for Pong, along with potential solutions that could be implemented in future work.
+
+\subsection{Model-free agent}
+
+\subsection{Environment}
+As previously stated, the environment model used for Pong is a modification of the one used by MiniPacman. Between the environments of MiniPacman and Sokoban, we believe that the former is better suited to Pong since its pool-and-inject layer considers global information about the environment. However, in a more thorough study of I2A applied to Pong, one should further consider how the environment can be best tuned specifically to Pong. It is possible there is a significantly different environment architecture that is performs better than what is used in this work.
+
+\subsection{Future Work}
+
+\bibliographystyle{plain}{
+\bibliography{report}
+}
 
 \end{document}

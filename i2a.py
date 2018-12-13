@@ -3,6 +3,7 @@ import numpy as np
 import game_utils
 from environment import EnvModel
 from a2c_agent import A2C
+from game_utils import normalize_states
 import a2c_agent
 
 MODEL_PATH_A2C = 'models/a2c/a2c_saved_model'
@@ -47,7 +48,7 @@ class I2A():
 
     def forward(self):
         batch_size = int(self.state.shape[0])
-        imagined_state, imagined_reward = self.imagination(self.state)
+        imagined_state, imagined_reward = self.imagination.imagine(self.state)
         feed_dict = {self.encoder.state: imagined_state, self.encoder.reward: imagined_reward}
         hidden = self.session.run(self.encoder.encode(), feed_dict=feed_dict)
 
@@ -77,8 +78,8 @@ class RolloutEncoder():
         self.hidden_state = self.encode()
 
     def set_features(self):
-        h0 = tf.layers.conv2d(self.state, filters=16, kernel_size=3, strides=1, activation=tf.nn.relu)
-        out = tf.layers.conv2d(h0, filters=16, kernel_size=3, strides=2, activation=tf.nn.relu)
+        h0 = tf.layers.conv2d(self.state, filters=16, kernel_size=3, strides=1, padding='SAME', activation=tf.nn.relu)
+        out = tf.layers.conv2d(h0, filters=16, kernel_size=3, strides=2, padding='SAME', activation=tf.nn.relu)
         return out
 
     def encode(self):
@@ -101,49 +102,62 @@ class ImaginationCore():
         self.a2c = a2c
 
 
-    def imagine(self, state):
-        batch_size = state.shape[0]
-
+    def imagine(self, states):
+        batch_size = states.shape[0]
+        print(batch_size)
+        # fix state normalization
+        states = np.array(normalize_states([[s, s] for s in states]))
+        print(states.shape)
         rollout_states = []
         rollout_rewards = []
 
-        # if self.full_rollout:
-        #     action = np.array([[[i] for i in range(self.num_actions)] for j in range(batch_size)])
-        #     action = action.reshape((-1,))
-        #     rollout_batch_size = batch_size * self.num_actions
-        # else:
-        #     action = self.a2c.model.next_action(state)
-        #     rollout_batch_size = batch_size
 
-        # action = np.array([[[i] for i in range(self.num_actions)] for j in range(batch_size)])
-        # action = action.reshape((-1,))
-        with a2c.graph.as_default():
-            action = self.a2c.model.next_action(state)
-        rollout_batch_size = batch_size * self.num_actions
+        if self.full_rollout:
+            actions = np.array([[[i] for i in range(self.num_actions)] for j in
+                                range(batch_size)])
 
-        # test
-        states = [state for i in range(rollout_batch_size)]
-        actions = []
-        for s in states:
-            actions.append(action)
+            actions = actions.reshape([-1,])
+
+            rollout_batch_size = batch_size * self.num_actions
+        else:
+            with a2c.graph.as_default():
+                # pass in current frame and next frame
+                #actions = [self.env.model.next_actions(states)]
+                actions = []
+            for s in states:
+                actions.append(self.a2c.model.next_action(s))
+            rollout_batch_size = batch_size
 
         for step in range(self.num_rollouts):
             with env.graph.as_default():
-                imagined_state, imagined_reward = env.model.forward(states, actions, rollout_batch_size)
-            print('here')
-            # convertion
+                imagined_states, imagined_rewards = env.model.forward(states, actions)
 
-            onehot_reward = tf.zeros(rollout_batch_size, self.num_rewards)
-            onehot_reward[range(rollout_batch_size), imagined_reward] = 1
 
-            rollout_states.append(imagined_state)
-            rollout_rewards.append(imagined_state)
+            imagined_states, imagined_rewards = self.convert_states_rewards(imagined_states, imagined_rewards)
 
-            state = imagined_state
-            action = self.a2c.next_action(state)
+            rollout_states.append(imagined_states)
+            rollout_rewards.append(imagined_rewards)
 
+            # reshape imagined state to a proper shape that can be passed into the environment
+            imagined_states = np.reshape(imagined_states, (rollout_batch_size, 186, 160, 5))
+            imagined_states = game_utils.onehot_to_pixels(imagined_states)
+
+            # concatenate the current state and next state for next action
+
+            next_states = [list(s) for s in zip([s[1] for s in states], imagined_states)]
+            states = next_states
+            with a2c.graph.as_default():
+                actions = []
+                for s in states:
+                    actions.append(self.a2c.model.next_action(s))
         return rollout_states, rollout_rewards
 
+    def convert_states_rewards(self, imagined_states, imagined_rewards):
+        imagined_states = game_utils.softmax(imagined_states, 2)
+        imagined_states = game_utils.onehot_to_pixels(imagined_states)
+
+
+        return imagined_states, imagined_rewards
 
 class ImportA2CGraph():
     """  Importing and running isolated TF graph """
@@ -177,5 +191,6 @@ if __name__ == '__main__':
     session = tf.Session()
     session.run(tf.global_variables_initializer())
 
-    core = ImaginationCore(1, 1, 1, 1, env, a2c, False)
-    core.imagine(a2c.model.game.reset())
+    # a2c.model.next_action([a2c.model.game.reset(), a2c.model.game.reset()])
+    core = ImaginationCore(2, 1, pong.num_actions, 1, env, a2c, False)
+    core.imagine(np.array([a2c.model.game.reset(), a2c.model.game.reset(), a2c.model.game.reset()]))

@@ -4,22 +4,13 @@ import random
 import numpy as np
 from a2c_agent import A2C
 import game_utils
-from game_utils import normalize_states
+from game_utils import normalize_states, map_pixels
 
 BATCH_SIZE = 16
 
 pong = game_utils.pong
 
-pixel_to_type = {pixel: i for i, pixel in enumerate(pong.pixels)}
-
 agent = A2C(pong.game)
-
-def map_pixels(states):
-    types = []
-    for pixel in np.array(states)[:,1].reshape(-1, 3):
-        types.append(pixel_to_type[tuple(pixel)])
-    return types
-
 
 class EnvModel:
     def __init__(self, game, sess=None):
@@ -27,6 +18,7 @@ class EnvModel:
         self.game = game
         # self.n_rewards = n_rewards
         with tf.variable_scope('env'):
+            # [batchsize, 186, 160, len(rgb) + num_actions]
             self.inputs = tf.placeholder(tf.float32, [None, 186, 160, 3 + game.num_actions])
             self.targets = tf.placeholder(tf.int32, [None])
             self.target_rewards = tf.placeholder(tf.float32, [None])
@@ -105,9 +97,9 @@ class EnvModel:
 
         return image, reward
 
-    def forward(self, states, actions, batch_size):
+    def forward(self, states, actions):
         # self.load_last_checkpoint()
-        return self.session.run([self.image, self.reward], feed_dict={self.inputs: self.convert_input(states, actions, batch_size)})
+        return self.session.run([self.image, self.reward], feed_dict={self.inputs: self.convert_input(states, actions)})
 
     def image_loss_function(self):
         onehot = tf.one_hot(self.targets, self.n_pixels)
@@ -130,9 +122,9 @@ class EnvModel:
     def train_episode(self, feed_dict):
         return self.session.run([self.loss, self.optimizer], feed_dict=feed_dict)
 
-    def convert_input(self, states, actions, batch_size):
+    def convert_input(self, states, actions):
+        batch_size = len(states)
         # delete top rows, make top/bottom borders black
-        states = normalize_states(states)
 
         # convert actions to onehot representation
         onehot_actions = np.zeros((batch_size, 186, 160, self.game.num_actions))
@@ -153,13 +145,13 @@ def next_actions(states):
 # play BATCH_SIZE games using the policy given by next_actions
 def next_batch(n_updates):
     envs = [gym.make(pong.name) for i in range(BATCH_SIZE)]
-    states = [env.reset() for env in envs]
+    states = normalize_states([env.reset() for env in envs])
     states = [[s,s] for s in states]
     #states, _, _, _ = zip(*[env.step(0) for env in envs])
 
     for i in range(n_updates):
         actions = next_actions(states)
-        results = [env.step(actions[i]) for i, env in enumerate(envs)]
+        results = normalize_states([env.step(actions[i]) for i, env in enumerate(envs)])
         next_states, rewards, is_done, _ = zip(*results)
 
         next_states = [ list(a) for a in zip([a[1] for a in states], next_states) ]
@@ -177,13 +169,13 @@ if __name__ == '__main__':
     env_model.load_last_checkpoint()
 
     for it, states, actions, rewards, next_states, is_done in next_batch(10):
-
-        inputs = env_model.convert_input(states, actions, BATCH_SIZE)
+        normalize_states(states)
+        inputs = env_model.convert_input(states, actions)
         next_states = normalize_states(next_states)
         # convert target states to indexes, using map_pixels function
         # there are only 5 different kinds of pixels
         targets = map_pixels(next_states)
-        env_model.forward(states, actions, BATCH_SIZE)
+        env_model.forward(states, actions)
         loss, _ = env_model.train_episode(feed_dict={
             env_model.inputs: inputs,
             env_model.targets: targets,
