@@ -34,7 +34,7 @@ PacMan, and Sokoban, in which the agent must push blocks onto designated targets
 In this work, we focus on applying I2A to Pong. We 
 
 \section{Related Work}
-Previous work on model-free agents, and model-based agents. Borrow content from the related work section in the original paper.
+As with many machine learning models, the original work on the Actor-Critic algorithm long proceeded the recent explosion deep learning literature \cite{actor_critic}. Asynchronous Actor-Critic, or A3C, further builds upon A2C by parallelizing the work performed by the original algorithm in an asynchronous manner. A3C is thus capable of better exploiting modern multicore architectures, and is the backbone of the model-free component of I2A.
 
 \section{Background}
 
@@ -46,7 +46,7 @@ sequence of \emph{imagination cores} that collectively generate a predicted futu
 
 \section{Game Environment}
 We use the Arcade Learning Environment (ALE) to simulate playing Atari games. ALE has been integrated
-into OpenAI Gym, which provides a standardized interface for taking actions and retrieving the resulting new
+into OpenAI Gym \cite{openai}, which provides a standardized interface for taking actions and retrieving the resulting new
 state, reward, etc. The game's state is simply the RGB image of a frame at a given point in time.
 
 Before image data is fed into any part of the network, it is normalized in a way that is more convenient for training.
