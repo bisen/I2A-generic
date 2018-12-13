@@ -4,22 +4,13 @@ import random
 import numpy as np
 from a2c_agent import A2C
 import game_utils
-from game_utils import normalize_states
+from game_utils import normalize_states, map_pixels
 
 BATCH_SIZE = 16
 
 pong = game_utils.pong
 
-pixel_to_type = {pixel: i for i, pixel in enumerate(pong.pixels)}
-
 agent = A2C(pong.game)
-
-def map_pixels(states):
-    types = []
-    for pixel in np.array(states)[:,1].reshape(-1, 3):
-        types.append(pixel_to_type[tuple(pixel)])
-    return types
-
 
 class EnvModel:
     def __init__(self, game, sess=None):
