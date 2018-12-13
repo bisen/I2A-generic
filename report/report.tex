@@ -86,6 +86,15 @@ A2C to learn. Once the model-free agent is trained, its policy is used to train 
 The environment is trained by using the model-free agent to play the game.
 
 \subsection{Model-free agent}
+ALE provides two different state spaces for playing Atari games, RAM content and the rendered pixels. We decided to use the pixel output, and stacked the current frame on top of the previous one to give the network some directional information which would in principle make our model free agent easier to train.
+
+While the original paper used a A3C (Asynchronous Actor-Critic) architecture as its model free policy network, we decided to use a simpler A2C architecure.
+The main difference is that A3C uses independent workers to update a shared policy network asynchronously, while A2C updates its weights sequentially.
+A2C networks are harder to train, but easier to implement.
+A2C contains an Actor takes takes in an observation and produces a probabilty distribution over possible actions and a Critic that also takes in an observation and assigns a numeric value to the observation which is then used to determine how advantageous a certain action is given the observed state.
+While these can be two separate networks, we decided to use one network with two heads instead.
+Input first goes through a stack of three convolutional layers and a fully connected layer that forms the trunk.
+Output of this network is fed into separate Actor and Critic components which are two fully-connected layers and one output layer each.
 
 \subsection{Environment model}
 
