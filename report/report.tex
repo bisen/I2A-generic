@@ -2,6 +2,7 @@
 \usepackage[margin=1in]{geometry}
 \usepackage{graphicx}
 \usepackage{subcaption}
+\usepackage{float}
 
 \title{Deep Reinforcement Learning for Atari Games}
 \author{Garnet Liu \and Vikram Saraph \and Birol Senturk}
@@ -107,6 +108,12 @@ previous section to take an action. Given an action and current state, recall th
 predicts the next state and reward obtained. In general, the environment model's architecture should be
 designed for the specific game in mind; however, for this project we used a modified version of the
 MiniPacman environment model.
+
+\begin{figure}[H]
+\centering
+\includegraphics[scale=0.3]{basic_layer}
+\caption{Basic Block, or a building block of the environment model's architecture}
+\end{figure}
 
 Recall that the state returned by the OpenAI Gym API is just an RGB image, and due to normalization 
 described in the Game Environment section, there are only five distinct kinds of pixels: border pixels (black),
