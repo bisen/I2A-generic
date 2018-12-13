@@ -135,11 +135,11 @@ class EnvModel:
         states = normalize_states(states)
 
         # convert actions to onehot representation
-        onehot_actions = np.zeros((batch_size, 186, 160, self.game.num_actions))
-        onehot_actions[range(batch_size), actions] = 1
+        onehot_actions = np.zeros((batch_size, 2, 186, 160, self.game.num_actions))
+        onehot_actions[range(batch_size), 0,0,0, actions] = 1
 
         # concatenate states and actions to feed to optimizer
-        inputs = np.concatenate([np.array(states)[:,1], onehot_actions], 3)
+        inputs = np.concatenate([np.array(states)[:,1], onehot_actions], 4)
         return inputs
 
 # return a batch of random actions
