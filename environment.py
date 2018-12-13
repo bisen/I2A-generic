@@ -27,6 +27,7 @@ class EnvModel:
         self.game = game
         # self.n_rewards = n_rewards
         with tf.variable_scope('env'):
+            # [batchsize, 186, 160, len(rgb) + num_actions]
             self.inputs = tf.placeholder(tf.float32, [None, 186, 160, 3 + game.num_actions])
             self.targets = tf.placeholder(tf.int32, [None])
             self.target_rewards = tf.placeholder(tf.float32, [None])
