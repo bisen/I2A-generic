@@ -89,6 +89,7 @@ environment. In the following, we outline the structure of our TensorFlow progra
 \centering
 \includegraphics[scale=0.3]{i2a}
 \caption{I2A architecture}
+\label{I2A}
 \end{figure*}
 
 \subsection{Model-free agent}
@@ -136,6 +137,8 @@ state and reward predictions.
 \subsection{I2A}
 
 I2A combines the knowledge learned by the models from the previous two steps. Like the model-free A2C, I2A learns a policy, but it also incorporates information from the environment model.
+
+We describe the forward pass of the architecture. Recall that I2A depends on a pre-trained model-free agent and environment model. Together, these will form the imagination cores. The forward pass is fed a batch of states, and the imagination engine uses these states to predict a sequence of predicted future states. In more detail, the model-free agent picks an action, and gives this action to the environment model, which predicts a next state. This next state is iteratively passed back into the model-free agent to pick another action, and the process continues, producing a sequence of states, or a \emph{rollout} as referred to in the paper. One or more rollouts may be computed. Each rollout is then passed to a \emph{rollout encoder}, which is a GRU cell. The results of the encoder is finally concatenated to the output of the model-free path, which uses the collective information to pick an action. In this way, I2A learns a policy. See Figure \ref{I2A} for the schematic diagram used in the original paper.
 
 \section{Results}
 
