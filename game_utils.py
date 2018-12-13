@@ -47,13 +47,17 @@ def normalize_states(states):
 def onehot_to_pixels(states):
     pixel_images = np.zeros(states.shape[:-1] + (3,))
     for i, onehot_image in enumerate(states):
-        # import pdb; pdb.set_trace()
         for x, _ in enumerate(onehot_image):
             for y, _ in enumerate(onehot_image[x]):
                 index = np.argmax(onehot_image[x][y])
                 pixel_images[i][x][y] = type_to_pixel[index]
     return pixel_images
 
-def softmax(x, axis):
-    """Compute softmax values for each sets of scores in x."""
-    return np.exp(x) / np.sum(np.exp(x), axis=axis)
+def logits_to_pixels(states):
+    pixel_images = np.zeros(states.shape[:-1] + (pong.num_actions,))
+    for i, logit_image in enumerate(states):
+        for x, _ in enumerate(logit_image):
+            for y, _ in enumerate(logit_image[x]):
+                index = np.argmax(logit_image[x][y])
+                pixel_images[i][x][y] = type_to_pixel[index]
+    return pixel_images
