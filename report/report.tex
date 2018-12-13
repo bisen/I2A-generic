@@ -18,23 +18,22 @@ Abstract here.
 \section{Introduction}
 
 In recent years, deep learning techniques have been successfully adapted and applied to problems
-in reinforcement learning. In this project, we survey and evaluate one such technique, called \emph{imagination augmented agents},
-(or \emph{I2A}). This technique was initially developed and published by Weber \emph{et. al.} at DeepMind \cite{NIPS}. In their original
-work, the authors describe the novel I2A as one that combines aspects of \emph{model-free} learning, in which an agent makes decisions
-based only on its current observations, with \emph{model-based} learning, where the agent attempts to learn about its environment
-in addition to a policy. In their work, the model-free agent is augmented with a model-based \emph{imagination engine}, which
-makes predictions about future trajectories of the agent from its current state.
+in reinforcement learning. In this project, we survey and evaluate one such technique, called \emph{imagination augmented agents}, or \emph{I2A}. This technique was initially developed and published by Weber \emph{et. al.} at DeepMind \cite{I2A}. In their original
+work, the authors describe the novel I2A as one that combines aspects of \emph{model-free} learning, in which an agent makes decisions based only on its state and reward observations, with \emph{model-based} learning, where the agent attempts to learn
+about its environment in addition to a policy. In their work, the model-free agent is augmented with a model-based \emph{imagination engine}, which makes predictions about future trajectories of the agent from its current state.
 
-While model-free agents have seemingly more flexible architectures, in practice they do not generalize do different tasks. Incorporating 
-model-based aspects allows one to provide additional fine-tuning to the network's architecture in some way that is representative of the 
+While model-free agents have seemingly more flexible architectures, in practice they do not generalize very well to different tasks,
+since they can exhibit poor performance. Incorporating model-based aspects allows one to provide additional fine-tuning to the network's architecture in a way that is specific of the 
 agent's environment. Indeed, the authors of the original paper demonstrate a significant improvement in the agent when adding 
-imagination to a standard model-free agent. They evaluate I2A on two different 2d games: MiniPacman, which is a simplified version of 
-PacMan, and Sokoban, in which the agent must push blocks onto designated targets.
+imagination to a standard model-free agent. They apply I2A to two different 2D games: MiniPacman, which is a simplified version of 
+PacMan, and Sokoban, in which the agent must push blocks onto designated targets to solve each level.
 
-In this work, we focus on applying I2A to Pong. We 
+In this work, we focus on applying I2A to Pong.
 
 \section{Related Work}
-As with many machine learning models, the original work on the Actor-Critic algorithm long proceeded the recent explosion deep learning literature \cite{actor_critic}. Asynchronous Actor-Critic, or A3C, further builds upon A2C by parallelizing the work performed by the original algorithm in an asynchronous manner. A3C is thus capable of better exploiting modern multicore architectures, and is the backbone of the model-free component of I2A.
+As with many machine learning models, the original work on the Actor-Critic algorithm long proceeded the recent explosion deep learning literature \cite{A2C}. Asynchronous Actor-Critic, or A3C \cite{A3C}, further builds upon A2C by parallelizing the work performed by the original algorithm in an asynchronous manner. A3C is thus capable of better exploiting modern multicore architectures, and is the backbone of the model-free component of I2A.
+
+We implement I2A in TensorFlow. While there does not appear to be an official implementation of I2A by DeepMind, we referred to a PyTorch implementation found on GitHub \cite{} as a guideline for our implementation.
 
 \section{Background}
 
@@ -42,18 +41,19 @@ In this section, we provide a high-level overview of the I2A architecture as des
 
 I2A unifies a model-free 
 architecture and a model-based one. The model-based component of I2A is also referred to as the imagination engine, and consists of a 
-sequence of \emph{imagination cores} that collectively generate a predicted future trajectory. Each imagination core makes use of a pre-trained policy network and an environment model. The policy network simply predicts the best action to take given an input state. The environment model takes an input state and the action returned by the policy network, and predicts the next state from taking the action. The predicted next state is fed from one imagination core to the subsequent one, so in this way, the output of the imagination cores is a sequence of predicted states (or trajectory). This trajectory provides additional context when learning a policy; together, the model-free policy and the imagine engine are combined to train a unified policy.
+sequence of \emph{imagination cores} that collectively generate a predicted future trajectory. Each imagination core makes use of a pre-trained policy network and an environment model. The policy network predicts the best action to take given an input state. The environment model takes an input state and the action returned by the policy network, and predicts the next state from taking the action. The predicted next state is fed from one imagination core to the subsequent one, so in this way, the output of the imagination cores is a sequence of predicted states (or trajectory). This trajectory provides additional context when learning a policy; together, the model-free policy and the imagine engine are combined to train a unified policy.
 
 \section{Game Environment}
-We use the Arcade Learning Environment (ALE) to simulate playing Atari games. ALE has been integrated
-into OpenAI Gym \cite{openai}, which provides a standardized interface for taking actions and retrieving the resulting new
-state, reward, etc. The game's state is simply the RGB image of a frame at a given point in time.
+The Arcade Learning Environment (ALE) is used to simulate playing Atari games, so we use this to play and interact with
+Pong. ALE has been integrated into OpenAI Gym \cite{openai}, which provides a standardized interface for taking actions
+and retrieving the resulting new state, reward, etc. The game's state is simply the RGB image of a frame at a given point in time,
+though many games have an alternative API that returns the RAM's state instead.
 
 Before image data is fed into any part of the network, it is normalized in a way that is more convenient for training.
 In particular, the top the image is removed, since it is only used to display the players' scores, pixels of which are
-unlikely to be useful features. In addition, the top and bottom border color is changed from white to black, since
-it is the same color as the ball. The idea is to help the network distinguish between the two types of pixels.
-See Figure \ref{screenshots} below.
+unlikely to be useful features for learning to play the game. In addition, the top and bottom border color is changed from
+white to black, since it is the same color as the ball. The idea is to help the network distinguish between the two types of pixels.
+See Figure \ref{screenshots} below for a frame and its normalization.
 
 \begin{figure}[h]
 \centering
@@ -69,12 +69,12 @@ See Figure \ref{screenshots} below.
   \caption{After normalization}
   \label{fig:normalized}
 \end{subfigure} \hfill
-\caption{Pong screenshots before and after normalization}
+\caption{Pong screenshots before and after normalization.}
 \label{screenshots}
 \end{figure}
 
 The OpenAI Gym API provides rewards and states, so we work with this data when training our model.
-Actions are taken with the \verb|step| function, which returns the resulting data.
+Actions are taken with the \verb|step| function.
 
 \section{Methodology}
 
@@ -90,15 +90,15 @@ environment. In the following, we outline the structure of our TensorFlow progra
 \end{figure*}
 
 \subsection{Model-free agent}
-ALE provides two different state spaces for playing Atari games, RAM content and the rendered pixels. We decided to use the pixel output, and stacked the current frame on top of the previous one to give the network some directional information which would in principle make our model free agent easier to train.
+ALE provides two different state spaces for playing Atari games, RAM content and the rendered pixels. We decided to use the pixel output, and stacked the current frame on top of the previous one to give the network some directional information which would in principle make our model-free agent easier to train.
 
-While the original paper used a A3C (Asynchronous Actor-Critic) architecture as its model free policy network, we decided to use a simpler A2C architecture.
+While the original paper used an A3C (Asynchronous Actor-Critic) architecture as its model-free policy network, we decided to use the simpler A2C architecture.
 The main difference is that A3C uses independent workers to update a shared policy network asynchronously, while A2C updates its weights sequentially.
 A2C networks are harder to train, but easier to implement.
-A2C contains an Actor takes takes in an observation and produces a probability distribution over possible actions and a Critic that also takes in an observation and assigns a numeric value to the observation which is then used to determine how advantageous a certain action is given the observed state.
+A2C contains an Actor that takes in an observation and produces a probability distribution over possible actions, and a Critic that also takes in an observation and assigns a numeric value to the observation which is then used to determine how advantageous a certain action is given the observed state.
 While these can be two separate networks, we decided to use one network with two heads instead.
 Input first goes through a stack of three convolutional layers and a fully connected layer that forms the trunk.
-Output of this network is fed into separate Actor and Critic components which are two fully-connected layers and one output layer each.
+The output of this network is fed into separate Actor and Critic components which are two fully-connected layers and one output layer each.
 
 \subsection{Environment model}
 
@@ -117,18 +117,23 @@ state data. This encodes all state and action information that the environment m
 
 Next, the input data is sent through a series of convolutional layers, consisting of higher level logical units
 called ``basic blocks", as described in the paper. The first layer of a basic block is \emph{pool-and-inject},
-which applies a maxpool and concatenates the result to the input. The result is then passed though
-convolutional layers, the output of which is the final output of a basic block.
+which applies a maxpool and concatenates the result to the input. The result is then passed through
+two parallel convolutional layers, which are concatenated again for the basic block's final output
 
 
 
 \subsection{I2A}
 
-I2A combines the knowledge learned by the models from the previous two steps. Like the model-free A2C, I2A learns a policy, but it incorporates information from the environment model.
+I2A combines the knowledge learned by the models from the previous two steps. Like the model-free A2C, I2A learns a policy, but it also incorporates information from the environment model.
 
 \section{Results}
 
+\subsection{Model-free agent}
+
 \subsection{Imagination}
+
+The environment model had moderate success at learning to predict the RGB image of a next state. Typically, when looking at frames
+that the model ``imagines", one sees a pattern where the model first learns shape, then learns colors. For example, the model is very quick to learn the border and background boundaries, even though in the imagined image the background may be green or the border white. It is slower to learn 
 
 \section{Discussion}
 
@@ -139,7 +144,10 @@ In this section, we discuss the issues encountered when studying I2A and impleme
 \subsection{Environment}
 As previously stated, the environment model used for Pong is a modification of the one used by MiniPacman. Between the environments of MiniPacman and Sokoban, we believe that the former is better suited to Pong since its pool-and-inject layer considers global information about the environment. However, in a more thorough study of I2A applied to Pong, one should further consider how the environment can be best tuned specifically to Pong. It is possible there is a significantly different environment architecture that is performs better than what is used in this work.
 
+Another critical difference between Pong and MiniPacman is the difference in size between the RGB images of the two games. MiniPacman is quite small, even by Atari 2600's standard, and is represented as a 15 x 19 grid world. By contrast, Atari's Pong has a 210 x 160 pixel representation, which is roughly two orders of magnitude larger than MiniPacman. Therefore, it is possible that using larger or deeper networks than the one used in MiniPacman would result in much better performance. Alternatively, one could design a Pong game from scratch that uses substantially fewer pixels, since the game has very low complexity. Unfortunately, the original paper did not provide any specifications on the hardware used for training their models.
+
 \subsection{Future Work}
+
 
 \bibliographystyle{plain}{
 \bibliography{report}
