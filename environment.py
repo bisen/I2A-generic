@@ -105,9 +105,9 @@ class EnvModel:
 
         return image, reward
 
-    def forward(self, states, actions, batch_size):
+    def forward(self, states, actions):
         # self.load_last_checkpoint()
-        return self.session.run([self.image, self.reward], feed_dict={self.inputs: self.convert_input(states, actions, batch_size)})
+        return self.session.run([self.image, self.reward], feed_dict={self.inputs: self.convert_input(states, actions)})
 
     def image_loss_function(self):
         onehot = tf.one_hot(self.targets, self.n_pixels)
@@ -130,16 +130,17 @@ class EnvModel:
     def train_episode(self, feed_dict):
         return self.session.run([self.loss, self.optimizer], feed_dict=feed_dict)
 
-    def convert_input(self, states, actions, batch_size):
+    def convert_input(self, states, actions):
+        batch_size = len(states)
         # delete top rows, make top/bottom borders black
         states = normalize_states(states)
 
         # convert actions to onehot representation
-        onehot_actions = np.zeros((batch_size, 2, 186, 160, self.game.num_actions))
-        onehot_actions[range(batch_size), 0,0,0, actions] = 1
+        onehot_actions = np.zeros((batch_size, 186, 160, self.game.num_actions))
+        onehot_actions[range(batch_size), actions] = 1
 
         # concatenate states and actions to feed to optimizer
-        inputs = np.concatenate([np.array(states)[:,1], onehot_actions], 4)
+        inputs = np.concatenate([np.array(states)[:,1], onehot_actions], 3)
         return inputs
 
 # return a batch of random actions
@@ -178,12 +179,12 @@ if __name__ == '__main__':
 
     for it, states, actions, rewards, next_states, is_done in next_batch(10):
 
-        inputs = env_model.convert_input(states, actions, BATCH_SIZE)
+        inputs = env_model.convert_input(states, actions)
         next_states = normalize_states(next_states)
         # convert target states to indexes, using map_pixels function
         # there are only 5 different kinds of pixels
         targets = map_pixels(next_states)
-        env_model.forward(states, actions, BATCH_SIZE)
+        env_model.forward(states, actions)
         loss, _ = env_model.train_episode(feed_dict={
             env_model.inputs: inputs,
             env_model.targets: targets,
