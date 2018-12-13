@@ -3,6 +3,7 @@ import numpy as np
 import game_utils
 from environment import EnvModel
 from a2c_agent import A2C
+from game_utils import normalize_states
 import a2c_agent
 
 MODEL_PATH_A2C = 'models/a2c/a2c_saved_model'
@@ -108,6 +109,8 @@ class ImaginationCore():
         rollout_rewards = []
 
         states = [[s, s] for s in states]
+        #import pdb; pdb.set_trace()
+
         if self.full_rollout:
             actions = np.array([[[i] for i in range(self.num_actions)] for j in
                                 range(batch_size)])
@@ -117,7 +120,10 @@ class ImaginationCore():
         else:
             with a2c.graph.as_default():
                 # pass in current frame and next frame
-                actions = [self.a2c.model.next_action(states)]
+                #actions = [self.env.model.next_actions(states)]
+                actions = []
+                for s in states:
+                    actions.append(self.a2c.model.next_action(s))
             rollout_batch_size = batch_size
 
         for step in range(self.num_rollouts):
@@ -134,15 +140,19 @@ class ImaginationCore():
             rollout_states.append(imagined_states)
             rollout_rewards.append(imagined_rewards)
 
-            # reshape imagined state to pass into the environment
-            np.reshape(imagined_states, [-1, 186, 160, 3 + self.num_actions])
+            # reshape imagined state to a proper shape that can be passed into the environment
+            imagined_states = np.reshape(imagined_states, (batch_size, 186, 160, 5))
+            imagined_states = game_utils.onehot_to_pixels(imagined_states)
 
             # concatenate the current state and next state for next action
+
             next_states = [list(s) for s in zip([s[1] for s in states], imagined_states)]
             states = next_states
             with a2c.graph.as_default():
-                actions = [self.a2c.next_action(states)]
-
+                actions = []
+                for s in states:
+                    actions.append(self.a2c.model.next_action(s))
+            print("PASSSSSSSS")
         return rollout_states, rollout_rewards
 
 
@@ -180,4 +190,4 @@ if __name__ == '__main__':
 
     # a2c.model.next_action([a2c.model.game.reset(), a2c.model.game.reset()])
     core = ImaginationCore(1, 1, pong.num_actions, 1, env, a2c, False)
-    core.imagine(a2c.model.game.reset())
+    core.imagine(np.array(normalize_states([[s,s] for s in [a2c.model.game.reset()]])[0]))

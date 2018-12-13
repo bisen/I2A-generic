@@ -125,7 +125,6 @@ class EnvModel:
     def convert_input(self, states, actions):
         batch_size = len(states)
         # delete top rows, make top/bottom borders black
-        states = normalize_states(states)
 
         # convert actions to onehot representation
         onehot_actions = np.zeros((batch_size, 186, 160, self.game.num_actions))
@@ -146,13 +145,13 @@ def next_actions(states):
 # play BATCH_SIZE games using the policy given by next_actions
 def next_batch(n_updates):
     envs = [gym.make(pong.name) for i in range(BATCH_SIZE)]
-    states = [env.reset() for env in envs]
+    states = normalize_states([env.reset() for env in envs])
     states = [[s,s] for s in states]
     #states, _, _, _ = zip(*[env.step(0) for env in envs])
 
     for i in range(n_updates):
         actions = next_actions(states)
-        results = [env.step(actions[i]) for i, env in enumerate(envs)]
+        results = normalize_states([env.step(actions[i]) for i, env in enumerate(envs)])
         next_states, rewards, is_done, _ = zip(*results)
 
         next_states = [ list(a) for a in zip([a[1] for a in states], next_states) ]
@@ -170,7 +169,7 @@ if __name__ == '__main__':
     env_model.load_last_checkpoint()
 
     for it, states, actions, rewards, next_states, is_done in next_batch(10):
-
+        normalize_states(states)
         inputs = env_model.convert_input(states, actions)
         next_states = normalize_states(next_states)
         # convert target states to indexes, using map_pixels function
