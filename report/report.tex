@@ -115,6 +115,7 @@ MiniPacman environment model.
 \centering
 \includegraphics[scale=0.3]{basic_layer}
 \caption{Basic Block, or a building block of the environment model's architecture}
+\label{basic}
 \end{figure}
 
 Recall that the state returned by the OpenAI Gym API is just an RGB image, and due to normalization 
@@ -130,7 +131,7 @@ which applies a maxpool and concatenates the result to the input. The result is 
 two parallel convolutional layers, which are concatenated again for the basic block's final output.
 
 After the basic block units, there is an additional convolutional layer and fully-connected layer for the
-state and reward predictions.
+state and reward predictions. Figure \ref{basic} is the diagram of basic block as included in the original paper.
 
 
 
