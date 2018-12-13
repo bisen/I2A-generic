@@ -48,7 +48,7 @@ class I2A():
 
     def forward(self):
         batch_size = int(self.state.shape[0])
-        imagined_state, imagined_reward = self.imagination(self.state)
+        imagined_state, imagined_reward = self.imagination.imagine(self.state)
         feed_dict = {self.encoder.state: imagined_state, self.encoder.reward: imagined_reward}
         hidden = self.session.run(self.encoder.encode(), feed_dict=feed_dict)
 
@@ -104,44 +104,42 @@ class ImaginationCore():
 
     def imagine(self, states):
         batch_size = states.shape[0]
-
+        print(batch_size)
+        # fix state normalization
+        states = np.array(normalize_states([[s, s] for s in states]))
+        print(states.shape)
         rollout_states = []
         rollout_rewards = []
 
-        states = [[s, s] for s in states]
-        #import pdb; pdb.set_trace()
 
         if self.full_rollout:
             actions = np.array([[[i] for i in range(self.num_actions)] for j in
                                 range(batch_size)])
 
             actions = actions.reshape([-1,])
+
             rollout_batch_size = batch_size * self.num_actions
         else:
             with a2c.graph.as_default():
                 # pass in current frame and next frame
                 #actions = [self.env.model.next_actions(states)]
                 actions = []
-                for s in states:
-                    actions.append(self.a2c.model.next_action(s))
+            for s in states:
+                actions.append(self.a2c.model.next_action(s))
             rollout_batch_size = batch_size
 
         for step in range(self.num_rollouts):
             with env.graph.as_default():
                 imagined_states, imagined_rewards = env.model.forward(states, actions)
 
-            print("IMAGINED STATE")
-            print(imagined_states.shape)
-            print("IMAGINED REWARD")
-            print(imagined_rewards)
-            # onehot_reward = np.zeros(rollout_batch_size, self.num_rewards)
-            # onehot_reward[range(rollout_batch_size), imagined_rewards] = 1
+
+            imagined_states, imagined_rewards = self.convert_states_rewards(imagined_states, imagined_rewards)
 
             rollout_states.append(imagined_states)
             rollout_rewards.append(imagined_rewards)
 
             # reshape imagined state to a proper shape that can be passed into the environment
-            imagined_states = np.reshape(imagined_states, (batch_size, 186, 160, 5))
+            imagined_states = np.reshape(imagined_states, (rollout_batch_size, 186, 160, 5))
             imagined_states = game_utils.onehot_to_pixels(imagined_states)
 
             # concatenate the current state and next state for next action
@@ -152,9 +150,14 @@ class ImaginationCore():
                 actions = []
                 for s in states:
                     actions.append(self.a2c.model.next_action(s))
-            print("PASSSSSSSS")
         return rollout_states, rollout_rewards
 
+    def convert_states_rewards(self, imagined_states, imagined_rewards):
+        imagined_states = game_utils.softmax(imagined_states, 2)
+        imagined_states = game_utils.onehot_to_pixels(imagined_states)
+
+
+        return imagined_states, imagined_rewards
 
 class ImportA2CGraph():
     """  Importing and running isolated TF graph """
@@ -189,5 +192,5 @@ if __name__ == '__main__':
     session.run(tf.global_variables_initializer())
 
     # a2c.model.next_action([a2c.model.game.reset(), a2c.model.game.reset()])
-    core = ImaginationCore(1, 1, pong.num_actions, 1, env, a2c, False)
-    core.imagine(np.array(normalize_states([[s,s] for s in [a2c.model.game.reset()]])[0]))
+    core = ImaginationCore(2, 1, pong.num_actions, 1, env, a2c, False)
+    core.imagine(np.array([a2c.model.game.reset(), a2c.model.game.reset(), a2c.model.game.reset()]))

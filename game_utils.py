@@ -53,3 +53,7 @@ def onehot_to_pixels(states):
                 index = np.argmax(onehot_image[x][y])
                 pixel_images[i][x][y] = type_to_pixel[index]
     return pixel_images
+
+def softmax(x, axis):
+    """Compute softmax values for each sets of scores in x."""
+    return np.exp(x) / np.sum(np.exp(x), axis=axis)
