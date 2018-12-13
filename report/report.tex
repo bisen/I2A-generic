@@ -29,7 +29,8 @@ agent's environment. Indeed, the authors of the original paper demonstrate a sig
 imagination to a standard model-free agent. They apply I2A to two different 2D games: MiniPacman, which is a simplified version of 
 PacMan, and Sokoban, in which the agent must push blocks onto designated targets to solve each level.
 
-In this work, we focus on applying I2A to Pong.
+In this work, we focus on applying I2A to Pong. First we provide a general background on the I2A architecture, in addition
+to the gaming environment we use to simulate Pong. Then we describe our implementation and design decisions we made when applying I2A to Pong, and conclude with results from our implementation and discussion on issues and potential future work.
 
 \section{Related Work}
 As with many machine learning models, the original work on the Actor-Critic algorithm long proceeded the recent explosion deep learning literature \cite{A2C}. Asynchronous Actor-Critic, or A3C \cite{A3C}, further builds upon A2C by parallelizing the work performed by the original algorithm in an asynchronous manner. A3C is thus capable of better exploiting modern multicore architectures, and is the backbone of the model-free component of I2A.
@@ -125,7 +126,10 @@ state data. This encodes all state and action information that the environment m
 Next, the input data is sent through a series of convolutional layers, consisting of higher level logical units
 called ``basic blocks", as described in the paper. The first layer of a basic block is \emph{pool-and-inject},
 which applies a maxpool and concatenates the result to the input. The result is then passed through
-two parallel convolutional layers, which are concatenated again for the basic block's final output
+two parallel convolutional layers, which are concatenated again for the basic block's final output.
+
+After the basic block units, there is an additional convolutional layer and fully-connected layer for the
+state and reward predictions.
 
 
 
@@ -135,12 +139,42 @@ I2A combines the knowledge learned by the models from the previous two steps. Li
 
 \section{Results}
 
+Here we discuss some results obtained from running components of the I2A network.
+
 \subsection{Model-free agent}
+
+\begin{figure}[h]
+\centering
+\includegraphics[scale=0.4]{losses}
+\includegraphics[scale=0.4]{rewards}
+\caption{Loss and discounted reward while training the model-free agent.}
+\label{plots}
+\end{figure}
 
 \subsection{Imagination}
 
 The environment model had moderate success at learning to predict the RGB image of a next state. Typically, when looking at frames
-that the model ``imagines", one sees a pattern where the model first learns shape, then learns colors. For example, the model is very quick to learn the border and background boundaries, even though in the imagined image the background may be green or the border white. It is slower to learn 
+that the model ``imagines", one sees a pattern where the model first learns shape, then learns colors. For example, the model is very quick to learn the border and background boundaries in just a few iterations, even though in the imagined image the background may be green or the border white. It is slower to learn the player, opponent, and ball pixels, though they do eventually appear after several dozen steps of training the environment.
+
+See Figure \ref{imagination} for examples produced by the imagination core. In the figure on the left, only the player is visible, while on the right, some pixels of the opponent are visible. The ball is also visible, though it is more difficult to see, and is not in the correct color, since the model has not yet learned the ball's color.
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}[b]{.2\textwidth}
+  \centering
+  \includegraphics[scale=0.5]{player}
+  \caption{Player appears}
+  \label{fig:player}
+\end{subfigure} 
+\begin{subfigure}[b]{.2\textwidth}
+  \centering
+  \includegraphics[scale=0.5]{opponent}
+  \caption{Opponent appears}
+  \label{fig:opponent}
+\end{subfigure} \hfill
+\caption{Sample imagined images. The model is quick to learn the background pixels, but takes longer to learn the player, opponent, and ball pixels.}
+\label{imagination}
+\end{figure}
 
 \section{Discussion}
 
