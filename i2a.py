@@ -14,7 +14,6 @@ BATCH_SIZE = 3
 # a standard nn of conv layers and fully connected one
 class I2A():
     def __init__(self, in_shape, num_actions, num_rewards, num_rollouts, hidden_size, encoder, imagination, full_rollout=True):
-        self.state = tf.placeholder(tf.float32, shape=[None, None, in_shape[0], in_shape[1], in_shape[2]])
         self.fc_in = tf.placeholder(tf.float32, shape=[num_rollouts, BATCH_SIZE*119040+1])
         self.x = tf.placeholder(tf.float32, shape=[num_rollouts, 256])
         self.reward = tf.placeholder(tf.float32, shape=[None, None, num_rewards])
@@ -29,13 +28,11 @@ class I2A():
 
         self.imagination = imagination
         self.encoder = encoder
-        self.fc = self.set_fc()
 
+        # fully connected layer
+        self.fc = self.set_fc()
         self.critic = tf.layers.dense(self.fc, 1)
         self.actor = tf.nn.softmax(tf.layers.dense(self.fc, num_actions))
-
-        # self.imagination = ImaginationCore(num_rollouts, game.num_actions, 6, env, a2c)
-        # self.encoder = self.RolloutEncoder(num_rollouts, in_shape, num_rewards, hidden_size)
 
         self.loss_val = self.loss()
 
@@ -61,6 +58,7 @@ class I2A():
             return tf.layers.dense(self.fc_in, output_size, activation=tf.nn.relu)
 
 
+    # output the suggested action and value in a batch
     def forward(self, states):
         batch_size = len(states)
         imagined_states, imagined_rewards, imagined_actions = self.imagination.imagine(states)
@@ -70,7 +68,6 @@ class I2A():
         # combine state
         x = np.concatenate([f, hidden], 1)
 
-        # x = self.session.run(self.fc, feed_dict={self.fc_in:x})
         logit = self.session.run(self.actor, feed_dict={self.fc_in:x})
         value = self.session.run(self.critic, feed_dict={self.fc_in:x})
 
@@ -105,15 +102,16 @@ class RolloutEncoder():
             self.session = tf.Session()
             self.session.run(tf.global_variables_initializer())
 
+    # train states
     def set_features(self):
         state = tf.reshape(self.state, [-1, self.in_shape[0], self.in_shape[1], self.in_shape[2]])
         h0 = tf.layers.conv2d(state, filters=16, kernel_size=3, strides=1, padding='SAME', activation=tf.nn.relu)
         out = tf.layers.conv2d(h0, filters=16, kernel_size=3, strides=2, padding='SAME', activation=tf.nn.relu)
         return out
 
+    # encode the rollout imagined states and actions
     def encode(self):
         rnn = tf.contrib.rnn.GRUCell(self.hidden_size)
-        # check features shape
         features = tf.reshape(self.features, [self.roll_steps, -1, int(self.in_shape[0]*self.in_shape[1]/4)*16])
         rnn_input = tf.concat([features, self.reward], 2)
         _, next_state = tf.nn.dynamic_rnn(rnn, rnn_input, dtype=tf.float32)
@@ -125,18 +123,17 @@ class RolloutEncoder():
     def get_f(self, state, reward):
         return self.session.run(self.features, feed_dict={self.state: state, self.reward: reward})
 
-# imagination core (IC) predicts the next time step conditioned on an action sampled from the rollout policy π
+#imagination core (IC) predicts the next time step conditioned on an action sampled from the rollout policy π
 class ImaginationCore():
     def __init__(self, num_rollouts, num_actions, num_rewards, env, a2c, full_rollout=False):
         self.num_rollouts = num_rollouts
-        # self.num_states = num_states
         self.num_actions = num_actions
         self.num_rewards = num_rewards
         self.full_rollout = full_rollout
         self.env = env
         self.a2c = a2c
 
-
+    # returns imagined actions, states, and rewards based on the number of rollouts
     def imagine(self, states):
         batch_size = states.shape[0]
         # fix state normalization
@@ -145,6 +142,7 @@ class ImaginationCore():
         rollout_rewards = []
         rollout_actions = []
 
+        # starts with given states and roll out based on all possible actions
         if self.full_rollout:
             actions = np.array([[[i] for i in range(self.num_actions)] for j in
                                 range(batch_size)])
@@ -152,10 +150,11 @@ class ImaginationCore():
             actions = actions.reshape([-1,])
 
             rollout_batch_size = batch_size * self.num_actions
+
+        # roll out with only the action suggested by the a2c agent
         else:
             with a2c.graph.as_default():
                 # pass in current frame and next frame
-                #actions = [self.env.model.next_actions(states)]
                 actions = []
             for s in states:
                 actions.append(self.a2c.model.next_action(s))
@@ -184,6 +183,7 @@ class ImaginationCore():
 
         return np.array(rollout_states), np.array(rollout_rewards), np.array(rollout_actions)
 
+    # convert the shape of the states and rewards
     def convert_states_rewards(self, imagined_states, imagined_rewards, rollout_batch_size):
         imagined_states = np.reshape(imagined_states, (rollout_batch_size, 186, 160, 5))
         imagined_states = game_utils.logits_to_pixels(imagined_states)
@@ -195,6 +195,7 @@ class ImaginationCore():
 
         return imagined_states, onehot_rewards
 
+# import models with proper graph
 class ImportA2CGraph():
     """  Importing and running isolated TF graph """
     def __init__(self, game):
@@ -224,27 +225,22 @@ if __name__ == '__main__':
     a2c = ImportA2CGraph(pong.game)
     env = ImportEnvGraph(pong, MODEL_PATH_ENV)
 
-    # session = tf.Session()
-
     num_rollout = 3
     num_rewards = 6
     image_dim = [186, 160, 3]
-    state = np.array([a2c.model.game.reset(), a2c.model.game.reset(), a2c.model.game.reset()])
+    state = []
+    for i in range(BATCH_SIZE):
+        state.append(a2c.model.game.reset())
+    state = np.array(state)
 
+    # initialize core
     core = ImaginationCore(num_rollout, pong.num_actions, num_rewards, env, a2c, False)
     encoder = RolloutEncoder(num_rollout, image_dim, num_rewards, 1)
-    # encoder.get_hidden(imagined_states, imagined_rewards)
+
+    # load and run I2A
     i2a = I2A(in_shape=image_dim, num_actions=pong.num_actions, num_rewards=num_rewards, num_rollouts=num_rollout, hidden_size=1,
               encoder=encoder, imagination=core)
     i2a.load_last_checkpoint()
     logit, value = i2a.forward(state)
     print('logit', logit)
     print('value', value)
-
-    # imagined_states, imagined_rewards, imagined_actions = core.imagine(state)
-    # hidden = encoder.get_hidden(imagined_states, imagined_rewards)
-    # f = encoder.get_f(imagined_states, imagined_rewards)
-    # f = np.reshape(f, [hidden.shape[0], -1])
-    # # combine state
-    # x = np.concatenate([f, hidden], 1)
-    # i2a.optimize({i2a.fc_in: x, i2a.actions: imagined_actions[:, -1], i2a.reward: imagined_rewards})
