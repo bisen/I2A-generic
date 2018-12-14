@@ -12,8 +12,8 @@
 
 \begin{abstract}
 
-Model free agents can perform very well on certain tasks, but they tend to  have trouble when a greedy approach is not optimal, or precise planning is required for success.
-"Imagination-Augmented Agents for Deep Reinforcement Learning" 
+Model-free agents can perform very well on certain tasks, but they tend to have trouble when a greedy approach is not optimal, or precise planning is required for success. \emph{Imagination-Augmented Agents for Deep Reinforcement Learning} is a paper which
+proposes to augment a model-free agent with an environment model that learns a game's or task's environment. We implement their algorithm in TensorFlow, and attempt to apply it to Pong, with some degree of success.
 
 \end{abstract}
 
@@ -36,7 +36,7 @@ to the gaming environment we use to simulate Pong. Then we describe our implemen
 \section{Related Work}
 As with many machine learning models, the original work on the Actor-Critic algorithm long proceeded the recent explosion deep learning literature \cite{A2C}. Asynchronous Actor-Critic, or A3C \cite{A3C}, further builds upon A2C by parallelizing the work performed by the original algorithm in an asynchronous manner. A3C is thus capable of better exploiting modern multicore architectures, and is the backbone of the model-free component of I2A.
 
-We implement I2A in TensorFlow. While there does not appear to be an official implementation of I2A by DeepMind, we referred to a PyTorch implementation found on GitHub \cite{} as a guideline for our implementation.
+We implement I2A in TensorFlow. While there does not appear to be an official implementation of I2A by DeepMind, we referred to a PyTorch implementation found on GitHub \cite{github} as a guideline for our implementation.
 
 \section{Background}
 
@@ -150,7 +150,7 @@ Here we discuss some results obtained from running components of the I2A network
 
 ***DRAFT***
 A2C was very difficult to train for our current task
-Network converges to a suicide strategy, both for pong and for qbert
+Network converges to a suicide strategy, both for Pong and for Qbert
 
 Average loss is increasing even though the average time discounted rewards is also increasing
 The network tends to converge into a losing strategy that has very low critic loss and quickly abandons accidental discoveries of high reward strategies.
@@ -195,41 +195,35 @@ See Figure \ref{imagination} for examples produced by the imagination core. In t
 In this section, we discuss the issues encountered when studying I2A and implementing an architecture for Pong, along with potential solutions that could be implemented in future work.
 
 \subsection{Model-free agent}
-***DRAFT***
-Model-free agent is an integral part of the whole I2A architecture as it not only is one of the two primary decision pathways alongside the aggregated rollouts, but it is also used while training the environment model and the rollout encoder.
+%***DRAFT***
+The model-free agent is an integral part of the whole I2A architecture, as it not only is one of the two primary decision pathways alongside the aggregated rollouts, but it is also used while training the environment model and the rollout encoder. However, as seen
+in the Results section, A2C did not appear to perform very well when learning Pong. There has been previous academic discussion on A2C being a poor choice to learn and play a game like Pong \cite{A2Cpong}.
 
-Part of the reason is the decision to use A2C instead of other model free networks like A3C and DQN
+% Part of the reason is the decision to use A2C instead of other model free networks like A3C and DQN. T
+%	Rewards are not immediate
 
-A2C is not a good network for a problem like Pong:
+	There are many states that are similar to one another, yet only a small subset of these states yield rewards, so there is a high critic loss attached to actions that return rewards, meaning the network avoids repeating strategies that were successful. On top of this, state values get harder to learn as the network plays better, since a bad agent consistently gets negative rewards with low variance, while variance of the expected reward increases as the agent gets better and better.
 
-	https://eccv18-vlease.github.io/static/papers/drl-video-game.pdf
+      We attempted several approaches to alleviate these issues. One thing that was tried was to add an entropy loss to the loss function, given by the equation: 
+      
+      \[ entropyFactor* actProbs*\log(actProbs) \]
 
-	Rewards are not immediate
+	Entropy incentivizes exploration instead of converging to a one-hot probability configuration. While the addition of entropy did help, it hampered the network’s ability to precisely adjust the player's position, losing points even when the player is mostly in the correct position.
 
-	There are very many states that are similar to the network and yet only a very small subset of these states have rewards, so there is a high critic loss attached to actions that return rewards, meaning the network avoids repeating strategies that were successful. On top of this, state values get harder to learn as the network plays better, since a bad agent consistently gets negative rewards with low variance, while variance of the expected reward increases as the agent gets better and better.
+	Another issue we encountered was that policies that were overall better sometimes performed badly given the randomness in the outcome and how rare the rewards are. This results in good strategies being abandoned quickly. Batches of 8 games were played before each update to reduce this effect. Larger batches would help even further, but the size of GCP instance's VRAM prevented us from increasing this batch size. A better way to solve this problem may be to use A3C, which has many worker processes that each play individual games, which would mean frequent updates to the network as well as many games with similar policies to get an average effectiveness of the policy. 
 
-Many approaches were tried to alleviate these problems
+%	Another approach that was tried was to alter the loss contribution of the critic, but that prevents the critic from learning state values and is thus slows down network convergence even further.
 
-	One of the first things was to add an entropy loss to the loss function which is  -entropy_factor* (actProbs*log(actProbs))
-
-	Entropy incentivizes exploration instead of converging to a [1,0,0] probability configuration. 
-	While entropy helped, it hampered the network’s ability to precisely adjust the paddle’s position, losing points even when the paddle is mostly in the right position.
-
-	Another problem was that policies that are overall better can perform badly given the arbitrariness in the outcome and how rare the rewards are.
-	This results in good strategies being abandoned quickly 
-
-	Batches of 8 games were played before each update to reduce this effect. Larger batches would help even further, but the size of VRAM of the cloud computing instance used did not allow more games to be used in training at once. A better way to alleviate this problem may be to use A3C which has many worker processes that each play individual games, which would mean frequent updates to the network as well as many games with similar policies to get an average effectiveness of the policy. 
-
-	Another approach that was tried was to alter the loss contribution of the critic, but that prevents the critic from learning state values and is thus slows down network convergence even further.
-
-***DRAFT***
+%***DRAFT***
 
 \subsection{Environment}
 As previously stated, the environment model used for Pong is a modification of the one used by MiniPacman. Between the environments of MiniPacman and Sokoban, we believe that the former is better suited to Pong since its pool-and-inject layer considers global information about the environment. However, in a more thorough study of I2A applied to Pong, one should further consider how the environment can be best tuned specifically to Pong. It is possible there is a significantly different environment architecture that is performs better than what is used in this work.
 
 Another critical difference between Pong and MiniPacman is the difference in size between the RGB images of the two games. MiniPacman is quite small, even by Atari 2600's standard, and is represented as a 15 x 19 grid world. By contrast, Atari's Pong has a 210 x 160 pixel representation, which is roughly two orders of magnitude larger than MiniPacman. Therefore, it is possible that using larger or deeper networks than the one used in MiniPacman would result in much better performance. Alternatively, one could design a Pong game from scratch that uses substantially fewer pixels, since the game has very low complexity. Unfortunately, the original paper did not provide any specifications on the hardware used for training their models.
 
-\subsection{Future Work}
+\section{Conclusion}
+
+In this work, we attempted a TensorFlow implementation of I2A. We were able implement the model-free agent and the environment model, and get an imagination core working to produce imagined images. In future work, it should be considered that A2C may not be the best model-free agent to use for a game such as Pong, and it may be better to use a Deep Q-Network instead. Nonetheless, we were able to demonstrate some success with the components of I2A that were implemented.
 
 
 \bibliographystyle{plain}{
