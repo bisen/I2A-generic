@@ -34,7 +34,7 @@ In this work, we focus on applying I2A to Pong. First we provide a general backg
 to the gaming environment we use to simulate Pong. Then we describe our implementation and design decisions we made when applying I2A to Pong, and conclude with results from our implementation and discussion on issues and potential future work.
 
 \section{Related Work}
-As with many machine learning models, the original work on the Actor-Critic algorithm long proceeded the recent explosion deep learning literature \cite{A2C}. Asynchronous Actor-Critic, or A3C \cite{A3C}, further builds upon A2C by parallelizing the work performed by the original algorithm in an asynchronous manner. A3C is thus capable of better exploiting modern multicore architectures, and is the backbone of the model-free component of I2A.
+As with many machine learning models, the original work on the Actor-Critic algorithm long proceeded the recent explosion in deep learning literature \cite{A2C}. Asynchronous Actor-Critic, or A3C \cite{A3C}, further builds upon A2C by parallelizing the work performed by the original algorithm in an asynchronous manner. A3C is thus capable of better exploiting modern multicore architectures, and is the backbone of the model-free component of I2A.
 
 We implement I2A in TensorFlow. While there does not appear to be an official implementation of I2A by DeepMind, we referred to a PyTorch implementation found on GitHub \cite{github} as a guideline for our implementation.
 
@@ -53,7 +53,7 @@ and retrieving the resulting new state, reward, etc. The game's state is simply 
 though many games have an alternative API that returns the RAM's state instead.
 
 Before image data is fed into any part of the network, it is normalized in a way that is more convenient for training.
-In particular, the top the image is removed, since it is only used to display the players' scores, pixels of which are
+In particular, the top of the image is removed, since it is only used to display the players' scores, pixels of which are
 unlikely to be useful features for learning to play the game. In addition, the top and bottom border color is changed from
 white to black, since it is the same color as the ball. The idea is to help the network distinguish between the two types of pixels.
 See Figure \ref{screenshots} below for a frame and its normalization.
@@ -122,7 +122,7 @@ MiniPacman environment model.
 Recall that the state returned by the OpenAI Gym API is just an RGB image, and due to normalization 
 described in the Game Environment section, there are only five distinct kinds of pixels: border pixels (black),
 background pixels (brown), ball pixels (white), player pixels (green), and opponent pixels (orange).
-Therefore, the each pixel in a given state is first mapped to a corresponding index (1 - 5). Then, the action
+Therefore, each pixel in a given state is first mapped to a corresponding index (1 - 5). Then, the action
 taken by the model-free agent is converted to a one-hot representation, and concatenated to the
 state data. This encodes all state and action information that the environment model needs to begin training.
 
@@ -148,13 +148,12 @@ Here we discuss some results obtained from running components of the I2A network
 
 \subsection{Model-free agent}
 
-***DRAFT***
-A2C was very difficult to train for our current task
-Network converges to a suicide strategy, both for Pong and for Qbert
+%***DRAFT***
+A2C was very difficult to train for our current task.
+The network converges to a suicide strategy, both for Pong, and even when applied to Qbert, another Atari game. See the discussion section for why this may be.
 
-Average loss is increasing even though the average time discounted rewards is also increasing
-The network tends to converge into a losing strategy that has very low critic loss and quickly abandons accidental discoveries of high reward strategies.
-***DRAFT***
+Average loss is increasing even though the average time discounted rewards is also increasing. The network tends to converge into a losing strategy that has very low critic loss and quickly abandons accidental discoveries of high reward strategies.
+%***DRAFT***
 
 
 \begin{figure}[h]
